@@ -2,7 +2,6 @@ import logging
 import os
 import random
 import sqlite3
-import requests
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -14,13 +13,21 @@ from telegram.ext import (
     filters,
 )
 
-# Configuration Variables
+# ================= CONFIGURATION VARIABLES =================
+# Telegram Bot Token (Render Environment Variable se aayega)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
-CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/YOUR_CHANNEL_LINK")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "123456789"))  # Replace with your Telegram ID
+
+# Aapka Fixed Deals Channel Link (Directly Configured)
+CHANNEL_LINK = "https://t.me/daily_price_alert"
+
+# Aapka Personal Telegram Numeric User ID (Render Environment Variable se aayega)
+ADMIN_ID = int(os.getenv("ADMIN_ID", "123456789"))
+
+# Aapke Render App ka Webhook URL (Render Environment Variable se aayega)
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://your-app-name.onrender.com")
 
-# Initialize Flask for Render Webhook & Keeping Bot Alive
+
+# Flask app setup for Render Webhook & Keeping Bot Alive
 app = Flask(__name__)
 
 # Logging Setup
@@ -28,7 +35,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # ================= DATABASE SETUP =================
 def init_db():
-    """SQLite Database setup for Users, Products, Whitelisted Groups, and Admin Config"""
+    """SQLite Database setup for Users, Products, Whitelisted Groups"""
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
@@ -64,6 +71,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Database initialize
 init_db()
 
 # ================= CAPTION & ROTATION SYSTEM =================
@@ -78,27 +86,27 @@ SHORT_CAPTIONS = [
 ]
 
 def get_random_caption():
-    """Smart Rotation: Pick random short caption"""
+    """Pick a random short caption from list"""
     return random.choice(SHORT_CAPTIONS)
 
 # ================= PRICE CHECKER (FAIL-SAFE RETRY) =================
 def fetch_product_details(url):
     """
     Mock scraper with Fail-Safe Retry logic.
-    Supports Amazon, Flipkart, and Meesho.
+    Supports Amazon, Flipkart, and Meesho links.
     """
     platform = "Unknown"
-    if "amazon" in url:
+    if "amazon" in url.lower():
         platform = "Amazon"
-    elif "flipkart" in url:
+    elif "flipkart" in url.lower():
         platform = "Flipkart"
-    elif "meesho" in url:
+    elif "meesho" in url.lower():
         platform = "Meesho"
 
     # Retry 3 times system
     for attempt in range(3):
         try:
-            # Simulated extracted data (In real setup, scrape or use API)
+            # Simulated extracted data
             dummy_price = round(random.uniform(999, 14999), 2)
             return {
                 "success": True,
@@ -109,13 +117,13 @@ def fetch_product_details(url):
         except Exception:
             continue
 
-    # Fallback response if fetch fails completely
+    # Fallback response if fetch fails
     return {"success": False, "price": 0, "platform": platform}
 
 # ================= TELEGRAM HANDLERS =================
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Welcome message with buttons and referral check"""
+    """Welcome message with channel link & buttons"""
     user_id = update.effective_user.id
     
     # Save user to DB if not exists
@@ -132,7 +140,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👉 [Click Here to Join]({CHANNEL_LINK})\n\n"
         "👇 Send any Amazon, Flipkart or Meesho product link to start tracking price.\n\n"
         "📢 Daily best deals:\n"
-        f"👉 [Join Deals Channel]({CHANNEL_LINK})"
+        f"👉 {CHANNEL_LINK}"
     )
 
     keyboard = [
@@ -141,7 +149,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup, disable_web_page_preview=True)
+    await update.message.reply_text(
+        welcome_text, 
+        parse_mode="Markdown", 
+        reply_markup=reply_markup, 
+        disable_web_page_preview=True
+    )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -149,7 +162,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
 
-    if any(p in text for p in ["amazon", "flipkart", "meesho"]):
+    if any(p in text.lower() for p in ["amazon", "flipkart", "meesho"]):
         await update.message.reply_text("⏳ Price check kar rahe hain, wait karo...")
 
         data = fetch_product_details(text)
@@ -174,7 +187,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             
             keyboard = [[InlineKeyboardButton("🛒 Buy Now", url=text)]]
-            await update.message.reply_text(response, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard), disable_web_page_preview=True)
+            await update.message.reply_text(
+                response, 
+                parse_mode="Markdown", 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                disable_web_page_preview=True
+            )
         else:
             await update.message.reply_text("❌ Link fetch nahi ho paya. Dobara try karein.")
     else:
@@ -182,7 +200,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def mydeals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """User Tracking Dashboard"""
+    """User Tracking Dashboard (/mydeals)"""
     user_id = update.effective_user.id
     
     conn = sqlite3.connect("database.db")
@@ -192,7 +210,7 @@ async def mydeals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     if not rows:
-        await update.message.reply_text("Aapne koi product track nahi kiya hai.")
+        await update.message.reply_text("Aapne abhi tak koi product track nahi kiya hai.")
         return
 
     msg = "📊 **Aapke Tracked Products:**\n\n"
@@ -203,10 +221,8 @@ async def mydeals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown", disable_web_page_preview=True)
 
 
-# ================= ADMIN & GROUP CONTROL =================
-
 async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Whitelist group command"""
+    """Whitelist group command (Admin Only)"""
     if update.effective_user.id != ADMIN_ID:
         return
     
@@ -219,10 +235,11 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text("✅ Ye group auto-posting ke liye approve ho gaya!")
 
-# ================= TELEGRAM APP SETUP =================
+# ================= TELEGRAM APP INITIALIZATION =================
 
 ptb_app = Application.builder().token(BOT_TOKEN).build()
 
+# Handlers register karein
 ptb_app.add_handler(CommandHandler("start", start_command))
 ptb_app.add_handler(CommandHandler("mydeals", mydeals_command))
 ptb_app.add_handler(CommandHandler("add_group", add_group))
@@ -240,14 +257,14 @@ def respond():
 def index():
     return "PriceDrop Dost Bot is Active!", 200
 
-# ================= STARTUP SCRIPT =================
+# ================= SERVER STARTUP =================
 if __name__ == "__main__":
     import asyncio
     
-    # Initialize webhook on startup
     async def setup_webhook():
         await ptb_app.initialize()
         await ptb_app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
         await ptb_app.start()
 
     asyncio.run(setup_webhook())
+    
