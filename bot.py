@@ -11,7 +11,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "8827005241:AAG-mAj8EkJmMrSi2KC8FobuucBwbFxJo
 CHANNEL_ID = "@daily_price_alert"
 CHANNEL_LINK = "https://t.me/daily_price_alert"
 BOT_USERNAME = "price_alert_zs93_bot"
-ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))  # Set your Telegram Admin ID here or via env
+ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 app = Flask(__name__)
@@ -19,16 +19,14 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=lo
 
 deal_index = 0
 
-# ================= DATABASE SETUP (OPT-IN GROUPS & SETTINGS) =================
+# ================= DATABASE SETUP =================
 def init_db():
     try:
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
         
-        # Users table
         cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, referrals INTEGER DEFAULT 0)")
         
-        # Opt-in Groups Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS optin_groups (
                 group_id INTEGER PRIMARY KEY,
@@ -42,7 +40,6 @@ def init_db():
             )
         """)
         
-        # Settings Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
@@ -50,7 +47,6 @@ def init_db():
             )
         """)
         
-        # Default Settings Initialization
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('promo_interval_mins', '30')")
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_group_limit', '20')")
         
@@ -236,18 +232,15 @@ def run_scheduled_promotions():
         if status != 'active':
             continue
 
-        # Reset daily counter if date changed
         if last_reset != today_str:
             daily_cnt = 0
             last_reset = today_str
 
-        # Check Daily Group Limit
         if daily_cnt >= daily_limit:
             skipped_count += 1
             report_lines.append(f"⏭️ {g_name} — Daily limit reached")
             continue
 
-        # Check Interval
         if last_time:
             last_dt = datetime.strptime(last_time, "%Y-%m-%d %H:%M:%S")
             diff_mins = (now - last_dt).total_seconds() / 60
@@ -256,7 +249,6 @@ def run_scheduled_promotions():
                 report_lines.append(f"⏭️ {g_name} — Rate limit (interval not reached)")
                 continue
 
-        # Send Promotional Message
         template_text = random.choice(PROMO_TEMPLATES)
         reply_markup = {
             "inline_keyboard": [
@@ -288,7 +280,6 @@ def run_scheduled_promotions():
             failed_count += 1
             report_lines.append(f"❌ {g_name} — Error: {str(ex)}")
 
-    # Send Private Report to Owner
     if ADMIN_USER_ID != 0 and report_lines:
         report_text = (
             "📢 *Promotion Report*\n\n"
@@ -394,7 +385,6 @@ def telegram_webhook():
                     "parse_mode": "Markdown"
                 })
                 
-                # Notify Owner if group opts out
                 if ADMIN_USER_ID != 0:
                     requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                         "chat_id": ADMIN_USER_ID,
@@ -404,7 +394,6 @@ def telegram_webhook():
             except Exception as e:
                 logging.error(f"Optout Error: {e}")
 
-    # Handle when bot is added to a new group
     elif "my_chat_member" in update:
         mcm = update["my_chat_member"]
         chat = mcm["chat"]
@@ -417,7 +406,6 @@ def telegram_webhook():
             date_added = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             if new_status in ["member", "administrator"]:
-                # Save group automatically in database
                 try:
                     conn = sqlite3.connect("database.db")
                     cursor = conn.cursor()
@@ -430,7 +418,6 @@ def telegram_webhook():
                 except Exception as e:
                     logging.error(f"Auto-save group error: {e}")
 
-                # Send Opt-in Setup Message
                 setup_text = (
                     "🔥 *PriceDrop Dost Promotion*\n\n"
                     "Want to receive useful deal updates in this group?\n\n"
@@ -462,7 +449,6 @@ def telegram_webhook():
         chat_type = msg["chat"]["type"]
         text = msg.get("text", "").strip()
 
-        # ================= ADMIN / GROUP CONTROLS =================
         if text.startswith("/promo_on"):
             if chat_type in ["group", "supergroup"]:
                 try:
@@ -515,4 +501,19 @@ def telegram_webhook():
 
         elif text.startswith("/leave_group"):
             if chat_type in ["group", "supergroup"]:
-                requests.post(f"{TELE
+                requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                    "chat_id": chat_id,
+                    "text": "👋 Leaving group as requested..."
+                })
+                requests.post(f"{TELEGRAM_API_URL}/leaveChat", json={"chat_id": chat_id})
+
+        elif text.startswith("/report"):
+            res_msg = run_scheduled_promotions()
+            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": f"📋 Manual Trigger Report:\n{res_msg}"
+            })
+
+        elif text.startswith("/about"):
+            about_text = (
+                f"🔥 *PriceDrop Dost — Yo
