@@ -73,7 +73,7 @@ HOT_DEALS = [
 
 ptb_app = Application.builder().token(BOT_TOKEN).build()
 
-# ================= MULTI-PHOTO DEAL BROADCASTER =================
+# Multi-Photo Broadcaster Function
 async def send_multi_image_deal():
     deal = random.choice(HOT_DEALS)
     
@@ -132,10 +132,18 @@ async def send_multi_image_deal():
     except Exception as db_err:
         logging.error(f"User DB Error: {db_err}")
 
-# ================= TELEGRAM HANDLERS =================
+# Safe Async Executor for Flask
+def run_async(coro):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+# Telegram Handlers
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    
     try:
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
@@ -168,30 +176,21 @@ async def post_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ptb_app.add_handler(CommandHandler("start", start_command))
 ptb_app.add_handler(CommandHandler("postdeal", post_now_command))
 
-# ================= FLASK ROUTES =================
+# Flask Routes
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def respond():
     update_data = request.get_json(force=True)
     update = Update.de_json(update_data, ptb_app.bot)
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(ptb_app.process_update(update))
-    loop.close()
+    run_async(ptb_app.process_update(update))
     return "ok", 200
 
-# Continuous Auto-Posting Trigger Route (CRON-JOB ROUTE)
 @app.route("/cron-auto-post")
 def auto_post_cron():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(send_multi_image_deal())
-    loop.close()
+    run_async(send_multi_image_deal())
     return "Deal Triggered Successfully!", 200
 
 @app.route("/")
 def index():
     return "Daily Deals Bot Active!", 200
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(ptb_app.initialize())
+run_async(ptb_app.initialize())
