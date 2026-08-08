@@ -516,4 +516,4 @@ def telegram_webhook():
 
         elif text.startswith("/about"):
             about_text = (
-                f"🔥 *PriceDrop Dost — Yo
+                "🔥 *PriceDrop Dost — You
