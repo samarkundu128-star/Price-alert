@@ -3,17 +3,21 @@ import logging
 import os
 import random
 import sqlite3
+import threading
+import time
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 # ================= CONFIGURATION =================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8827005241:AAG-mAj8EkJmMrSi2KC8FobuucBwbFxJofY")
-CHANNEL_ID = "@daily_price_alert"  # Aapka Channel Username
+CHANNEL_ID = "@daily_price_alert"
+CHANNEL_LINK = "https://t.me/daily_price_alert"
 
 app = Flask(__name__)
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
+# ================= DATABASE SETUP =================
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -23,7 +27,7 @@ def init_db():
 
 init_db()
 
-# ================= HIGH DISCOUNT MULTI-IMAGE DEALS DATABASE =================
+# ================= HOT DEALS DATABASE =================
 HOT_DEALS = [
     {
         "title": "📱 Samsung Galaxy M35 5G (8GB RAM, 128GB)",
@@ -34,8 +38,7 @@ HOT_DEALS = [
         "images": [
             "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
             "https://m.media-amazon.com/images/I/71K8iX2BAnL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/81P8y-d3kYL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/710e2jI5b2L._SL1500_.jpg"
+            "https://m.media-amazon.com/images/I/81P8y-d3kYL._SL1500_.jpg"
         ],
         "url": "https://www.amazon.in/dp/B0D782C2LK"
     },
@@ -79,27 +82,33 @@ async def send_multi_image_deal():
         f"💰 **Deal Price: {deal['deal_price']}**\n"
         f"⚡ **Discount:** {deal['discount']}\n\n"
         f"📌 **Key Features:**\n{deal['specs']}\n\n"
-        f"🛒 **Buy Link:** {deal['url']}\n\n"
         f"📢 Daily Price Updates: {CHANNEL_ID}"
     )
 
-    # 3-4 Images Album Prep
     media_group = []
     for idx, img_url in enumerate(deal["images"]):
         if idx == 0:
-            # Pehli photo ke sath Caption lagana padta hai
             media_group.append(InputMediaPhoto(media=img_url, caption=caption, parse_mode="Markdown"))
         else:
             media_group.append(InputMediaPhoto(media=img_url))
 
-    # 1. Channel me Post Karein (3-4 Photos Gallery)
+    keyboard = [[InlineKeyboardButton("🛒 Direct Buy Product Here", url=deal["url"])]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # 1. Channel Broadcast
     try:
         await ptb_app.bot.send_media_group(chat_id=CHANNEL_ID, media=media_group)
-        logging.info("Multi-image deal posted to channel!")
+        await ptb_app.bot.send_message(
+            chat_id=CHANNEL_ID, 
+            text=f"👉 **Click below to buy {deal['title']}:**", 
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        logging.info("Deal posted to Channel!")
     except Exception as e:
         logging.error(f"Channel Broadcast Error: {e}")
 
-    # 2. Personal Users ko Post Karein
+    # 2. Users Broadcast
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users")
@@ -109,9 +118,35 @@ async def send_multi_image_deal():
     for user in users:
         try:
             await ptb_app.bot.send_media_group(chat_id=user[0], media=media_group)
-            await asyncio.sleep(0.1) # Flood prevention
+            await ptb_app.bot.send_message(
+                chat_id=user[0], 
+                text=f"👉 **Click below to buy {deal['title']}:**", 
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+            await asyncio.sleep(0.1)
         except Exception as e:
             logging.error(f"User Broadcast Error: {e}")
+
+# ================= BACKGROUND AUTO-POSTING LOOP (20-30 SECONDS) =================
+async def auto_post_loop():
+    while True:
+        try:
+            # 20 se 30 seconds ke beech random interval choose karega
+            wait_time = random.randint(20, 30)
+            await asyncio.sleep(wait_time)
+            await send_multi_image_deal()
+        except Exception as e:
+            logging.error(f"Error in auto_post_loop: {e}")
+            await asyncio.sleep(10)
+
+def start_background_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(auto_post_loop())
+
+# Background Thread me auto-poster start karein
+threading.Thread(target=start_background_loop, daemon=True).start()
 
 # ================= TELEGRAM HANDLERS =================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,16 +158,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
 
+    welcome_text = (
+        "🔥 **Welcome to Daily Price Update!**\n\n"
+        "Ab aapko sabse sasti aur dhamaka deals **Personal Chat + Channel** dono jagah har kuch seconds me milengi!\n\n"
+        "📢 **Humara Main Deals Channel zaroor join karein:**\n"
+        f"👉 [Click Here to Join Channel]({CHANNEL_LINK})\n\n"
+        "⚡ *Naye offers automatic update hote rahenge!*"
+    )
+
+    keyboard = [[InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)]]
     await update.message.reply_text(
-        f"🔥 **Daily Price Update Bot Active!**\n\n"
-        f"Aapko sabse sasti loot deals multiple photos aur full details ke sath yahan milengi.\n\n"
-        f"📢 **Channel Join Karein:** {CHANNEL_ID}",
-        parse_mode="Markdown"
+        welcome_text, 
+        parse_mode="Markdown", 
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        disable_web_page_preview=True
     )
 
 async def post_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_multi_image_deal()
-    await update.message.reply_text("✅ Multi-photo deal Post kar di gayi hai!")
+    await update.message.reply_text("✅ Deal instant post kar di gayi hai!")
 
 ptb_app.add_handler(CommandHandler("start", start_command))
 ptb_app.add_handler(CommandHandler("postdeal", post_now_command))
@@ -149,19 +193,9 @@ def respond():
     loop.close()
     return "ok", 200
 
-# Fast Auto Post Cron Trigger Route
-@app.route("/cron-auto-post")
-def auto_post_cron():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(send_multi_image_deal())
-    loop.close()
-    return "Deal Posted with 3-4 Images!", 200
-
 @app.route("/")
 def index():
-    return "Daily Multi-Image Deals Bot Active!", 200
+    return "20-30 Second Auto-Deals Bot Active!", 200
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(ptb_app.initialize())
-    
