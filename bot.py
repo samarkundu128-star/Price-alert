@@ -14,32 +14,18 @@ from telegram.ext import (
 )
 
 # ================= CONFIGURATION VARIABLES =================
-# Telegram Bot Token (Render Environment Variable se aayega)
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
-
-# Aapka Fixed Deals Channel Link (Directly Configured)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8827005241:AAG-mAj8EkJmMrSi2KC8FobuucBwbFxJofY")
 CHANNEL_LINK = "https://t.me/daily_price_alert"
-
-# Aapka Personal Telegram Numeric User ID (Render Environment Variable se aayega)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "123456789"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://price-alert-zs93.onrender.com")
 
-# Aapke Render App ka Webhook URL (Render Environment Variable se aayega)
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://your-app-name.onrender.com")
-
-
-# Flask app setup for Render Webhook & Keeping Bot Alive
 app = Flask(__name__)
-
-# Logging Setup
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 # ================= DATABASE SETUP =================
 def init_db():
-    """SQLite Database setup for Users, Products, Whitelisted Groups"""
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    
-    # Users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -47,8 +33,6 @@ def init_db():
             referred_by INTEGER
         )
     """)
-    
-    # Tracked Products table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,41 +44,29 @@ def init_db():
             updated_at TEXT
         )
     """)
-    
-    # Whitelisted Groups table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS approved_groups (
             group_id INTEGER PRIMARY KEY
         )
     """)
-
     conn.commit()
     conn.close()
 
-# Database initialize
 init_db()
 
-# ================= CAPTION & ROTATION SYSTEM =================
 SHORT_CAPTIONS = [
     "🔥 Phone price down! Jaldi check karo.",
     "💸 Aaj ka best laptop deal live hai.",
     "⚡ Flash sale start! Limited stock.",
     "📱 Best phone under 15k ab aur sasta.",
     "🛒 Deal miss mat karo, price kabhi bhi badh sakta hai.",
-    "🚀 Dhamaka deal! Price drop ho gaya.",
-    "🤩 Itna sasta dobara nahi milega!"
+    "🚀 Dhamaka deal! Price drop ho gaya."
 ]
 
 def get_random_caption():
-    """Pick a random short caption from list"""
     return random.choice(SHORT_CAPTIONS)
 
-# ================= PRICE CHECKER (FAIL-SAFE RETRY) =================
 def fetch_product_details(url):
-    """
-    Mock scraper with Fail-Safe Retry logic.
-    Supports Amazon, Flipkart, and Meesho links.
-    """
     platform = "Unknown"
     if "amazon" in url.lower():
         platform = "Amazon"
@@ -103,30 +75,18 @@ def fetch_product_details(url):
     elif "meesho" in url.lower():
         platform = "Meesho"
 
-    # Retry 3 times system
-    for attempt in range(3):
-        try:
-            # Simulated extracted data
-            dummy_price = round(random.uniform(999, 14999), 2)
-            return {
-                "success": True,
-                "title": f"Sample {platform} Item",
-                "price": dummy_price,
-                "platform": platform
-            }
-        except Exception:
-            continue
-
-    # Fallback response if fetch fails
-    return {"success": False, "price": 0, "platform": platform}
+    dummy_price = round(random.uniform(999, 14999), 2)
+    return {
+        "success": True,
+        "title": f"Sample {platform} Item",
+        "price": dummy_price,
+        "platform": platform
+    }
 
 # ================= TELEGRAM HANDLERS =================
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Welcome message with channel link & buttons"""
     user_id = update.effective_user.id
     
-    # Save user to DB if not exists
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
@@ -156,9 +116,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True
     )
 
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process incoming URLs from Amazon, Flipkart, or Meesho"""
     text = update.message.text
     user_id = update.effective_user.id
 
@@ -198,9 +156,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("⚠️ Direct Amazon, Flipkart, ya Meesho ka link bhejo.")
 
-
 async def mydeals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """User Tracking Dashboard (/mydeals)"""
     user_id = update.effective_user.id
     
     conn = sqlite3.connect("database.db")
@@ -220,51 +176,33 @@ async def mydeals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += f"\n📢 Daily best deals:\n👉 {CHANNEL_LINK}"
     await update.message.reply_text(msg, parse_mode="Markdown", disable_web_page_preview=True)
 
-
-async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Whitelist group command (Admin Only)"""
-    if update.effective_user.id != ADMIN_ID:
-        return
-    
-    chat_id = update.effective_chat.id
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO approved_groups VALUES (?)", (chat_id,))
-    conn.commit()
-    conn.close()
-    
-    await update.message.reply_text("✅ Ye group auto-posting ke liye approve ho gaya!")
-
-# ================= TELEGRAM APP INITIALIZATION =================
-
+# ================= TELEGRAM APP SETUP =================
 ptb_app = Application.builder().token(BOT_TOKEN).build()
-
-# Handlers register karein
 ptb_app.add_handler(CommandHandler("start", start_command))
 ptb_app.add_handler(CommandHandler("mydeals", mydeals_command))
-ptb_app.add_handler(CommandHandler("add_group", add_group))
 ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Webhook Routes for Render
+# Webhook Handler Fix using Asyncio Loop
+import asyncio
+
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def respond():
-    """Receive Telegram Webhook Updates"""
-    update = Update.de_json(request.get_json(force=True), ptb_app.bot)
-    ptb_app.update_queue.put_nowait(update)
+    update_data = request.get_json(force=True)
+    update = Update.de_json(update_data, ptb_app.bot)
+    
+    # Process update synchronously in event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(ptb_app.process_update(update))
+    loop.close()
+    
     return "ok", 200
 
 @app.route("/")
 def index():
     return "PriceDrop Dost Bot is Active!", 200
 
-# ================= SERVER STARTUP =================
-if __name__ == "__main__":
-    import asyncio
-    
-    async def setup_webhook():
-        await ptb_app.initialize()
-        await ptb_app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-        await ptb_app.start()
-
-    asyncio.run(setup_webhook())
+# App initialization
+loop = asyncio.get_event_loop()
+loop.run_until_complete(ptb_app.initialize())
     
