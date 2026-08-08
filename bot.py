@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import random
@@ -94,7 +95,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     welcome_text = (
-        "🔥 **Welcome to PriceDrop Dost!**\n\n"
+        "🔥 **Welcome to Daily Price Update!**\n\n"
         "Best phone, laptop, PC and daily deals in easy English.\n\n"
         "📢 **Join our deals channel first:**\n"
         f"👉 [Click Here to Join]({CHANNEL_LINK})\n\n"
@@ -182,15 +183,11 @@ ptb_app.add_handler(CommandHandler("start", start_command))
 ptb_app.add_handler(CommandHandler("mydeals", mydeals_command))
 ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Webhook Handler Fix using Asyncio Loop
-import asyncio
-
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def respond():
     update_data = request.get_json(force=True)
     update = Update.de_json(update_data, ptb_app.bot)
     
-    # Process update synchronously in event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(ptb_app.process_update(update))
@@ -200,9 +197,8 @@ def respond():
 
 @app.route("/")
 def index():
-    return "PriceDrop Dost Bot is Active!", 200
+    return "Daily Price Update Bot is Active!", 200
 
 # App initialization
 loop = asyncio.get_event_loop()
 loop.run_until_complete(ptb_app.initialize())
-    
