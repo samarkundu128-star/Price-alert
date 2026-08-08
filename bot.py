@@ -30,7 +30,7 @@ def init_db():
 
 init_db()
 
-# ================= REAL ACCURATE AMAZON DEALS =================
+# ================= REAL ACCURATE AMAZON DEALS (PERMANENT DIRECT LINKS) =================
 HOT_DEALS = [
     {
         "id": "hp_15_ultra",
@@ -41,7 +41,7 @@ HOT_DEALS = [
         "discount": "10% OFF 🔥 (Freedom Sale Mega Deal)",
         "specs": "• Intel Arc Graphics\n• 15.6\" FHD IPS Display\n• Win 11 + MS Office 2024",
         "image": "https://m.media-amazon.com/images/I/71XvO-0bO5L._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0D131NS5K"
+        "url": "https://www.amazon.in/dp/B0D131NS5K?tag=dailyprice0e-21&linkCode=osi"
     },
     {
         "id": "asus_vivobook_16",
@@ -52,7 +52,7 @@ HOT_DEALS = [
         "discount": "22% OFF ⚡ (Limited Time Deal)",
         "specs": "• 16GB DDR5 / 512GB SSD\n• Thin & Light Design\n• ASUS AI Features",
         "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0CX58S11D"
+        "url": "https://www.amazon.in/dp/B0CX58S11D?tag=dailyprice0e-21&linkCode=osi"
     },
     {
         "id": "samsung_m35",
@@ -63,7 +63,7 @@ HOT_DEALS = [
         "discount": "20% OFF 🔥 (Official Price)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0D782C2LK"
+        "url": "https://www.amazon.in/dp/B0D782C2LK?tag=dailyprice0e-21&linkCode=osi"
     },
     {
         "id": "boat_141",
@@ -74,7 +74,7 @@ HOT_DEALS = [
         "discount": "71% OFF 💥 (Best Seller)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B09N3Z3Y89"
+        "url": "https://www.amazon.in/dp/B09N3Z3Y89?tag=dailyprice0e-21&linkCode=osi"
     }
 ]
 
@@ -89,10 +89,9 @@ def send_deal(target_id, deal):
         f"📢 Daily Price Updates: {CHANNEL_ID}"
     )
 
-    # Keyboard containing Direct Buy + Category Buttons + Join Channel
     reply_markup = {
         "inline_keyboard": [
-            [{"text": "🛒 Buy Product Direct (Pic 2 View)", "url": deal["url"]}],
+            [{"text": "🛒 Direct Buy Product Here", "url": deal["url"]}],
             [
                 {"text": "📱 Mobiles", "callback_data": "cat_mobile"},
                 {"text": "💻 Laptops", "callback_data": "cat_laptop"},
@@ -110,7 +109,6 @@ def send_deal(target_id, deal):
         "reply_markup": reply_markup
     })
 
-    # Fallback to Text Message if photo fails
     if res.status_code != 200:
         requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
             "chat_id": target_id,
@@ -122,7 +120,6 @@ def send_deal(target_id, deal):
 
 def broadcast_deal():
     global deal_index
-    # Cyclical rotation to prevent repeating the same deal
     deal = HOT_DEALS[deal_index % len(HOT_DEALS)]
     deal_index += 1
 
@@ -170,7 +167,6 @@ def promote_to_groups():
 def telegram_webhook():
     update = request.get_json(force=True)
 
-    # Category Inline Buttons Trigger
     if "callback_query" in update:
         cb = update["callback_query"]
         cb_id = cb["id"]
@@ -269,4 +265,3 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-        
