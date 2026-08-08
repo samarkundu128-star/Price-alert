@@ -30,29 +30,40 @@ def init_db():
 
 init_db()
 
-# ================= REAL & WORKING DEALS (100% ACCURATE LINKS) =================
+# ================= REAL ACCURATE AMAZON DEALS =================
 HOT_DEALS = [
+    {
+        "id": "hp_15_ultra",
+        "category": "laptop",
+        "title": "💻 HP 15, Intel Core Ultra 5 125H (16GB RAM, 1TB SSD)",
+        "orig_price": "₹86,451",
+        "deal_price": "₹77,990",
+        "discount": "10% OFF 🔥 (Freedom Sale Mega Deal)",
+        "specs": "• Intel Arc Graphics\n• 15.6\" FHD IPS Display\n• Win 11 + MS Office 2024",
+        "image": "https://m.media-amazon.com/images/I/71XvO-0bO5L._SL1500_.jpg",
+        "url": "https://www.amazon.in/dp/B0D131NS5K"
+    },
+    {
+        "id": "asus_vivobook_16",
+        "category": "laptop",
+        "title": "💻 ASUS Vivobook 16, Intel Core Ultra 5",
+        "orig_price": "₹93,990",
+        "deal_price": "₹72,990",
+        "discount": "22% OFF ⚡ (Limited Time Deal)",
+        "specs": "• 16GB DDR5 / 512GB SSD\n• Thin & Light Design\n• ASUS AI Features",
+        "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
+        "url": "https://www.amazon.in/dp/B0CX58S11D"
+    },
     {
         "id": "samsung_m35",
         "category": "mobile",
         "title": "📱 Samsung Galaxy M35 5G (8GB RAM, 128GB)",
         "orig_price": "₹24,999",
         "deal_price": "₹19,999",
-        "discount": "20% OFF 🔥 (Verified Deal)",
+        "discount": "20% OFF 🔥 (Official Price)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=Samsung+Galaxy+M35+5G+128GB+Moonlight+Blue"
-    },
-    {
-        "id": "asus_vivobook",
-        "category": "laptop",
-        "title": "💻 ASUS Vivobook 15 Intel Core i3 12th Gen",
-        "orig_price": "₹49,990",
-        "deal_price": "₹33,990",
-        "discount": "32% OFF ⚡ (Heavy Drop)",
-        "specs": "• 8GB RAM / 512GB SSD\n• Thin & Light Design\n• Windows 11 + MS Office",
-        "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=ASUS+Vivobook+15+Intel+Core+i3+12th+Gen+512GB"
+        "url": "https://www.amazon.in/dp/B0D782C2LK"
     },
     {
         "id": "boat_141",
@@ -63,33 +74,11 @@ HOT_DEALS = [
         "discount": "71% OFF 💥 (Best Seller)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=boAt+Airdopes+141+TWS+Earbuds"
-    },
-    {
-        "id": "fireboltt_watch",
-        "category": "wearables",
-        "title": "⌚ Fire-Boltt Ninja Call Pro Plus Smartwatch",
-        "orig_price": "₹9,999",
-        "deal_price": "₹1,199",
-        "discount": "88% OFF 💥 (Super Saver)",
-        "specs": "• 1.83 inch Display\n• Bluetooth Calling\n• 100+ Sports Modes",
-        "image": "https://m.media-amazon.com/images/I/61S9aEhe1LU._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=Fire-Boltt+Ninja+Call+Pro+Plus+Smartwatch"
-    },
-    {
-        "id": "pigeon_kettle",
-        "category": "home",
-        "title": "🫖 Pigeon Electric Kettle 1.5 Litre",
-        "orig_price": "₹1,249",
-        "deal_price": "₹629",
-        "discount": "50% OFF 🔥 (Home Essential)",
-        "specs": "• Stainless Steel Body\n• Auto Shut-Off\n• 1500W Fast Boiling",
-        "image": "https://m.media-amazon.com/images/I/51DF6085f-L._SL1000_.jpg",
-        "url": "https://www.amazon.in/s?k=Pigeon+Electric+Kettle+1.5+Litre"
+        "url": "https://www.amazon.in/dp/B09N3Z3Y89"
     }
 ]
 
-# ================= TELEGRAM FUNCTIONS =================
+# ================= TELEGRAM CORE FUNCTIONS =================
 def send_deal(target_id, deal):
     caption = (
         f"🔥 *{deal['title']}*\n\n"
@@ -97,16 +86,19 @@ def send_deal(target_id, deal):
         f"💰 *Deal Price: {deal['deal_price']}*\n"
         f"⚡ *Discount:* {deal['discount']}\n\n"
         f"📌 *Key Features:*\n{deal['specs']}\n\n"
-        f"📢 Join Channel: {CHANNEL_ID}"
+        f"📢 Daily Price Updates: {CHANNEL_ID}"
     )
 
-    share_text = f"🔥 Checkout this deal: {deal['title']} at {deal['deal_price']}!\nJoin: {CHANNEL_LINK}"
-    share_url = f"https://t.me/share/url?url={CHANNEL_LINK}&text={requests.utils.quote(share_text)}"
-
+    # Keyboard containing Direct Buy + Category Buttons + Join Channel
     reply_markup = {
         "inline_keyboard": [
-            [{"text": "🛒 Direct Buy Product Here", "url": deal["url"]}],
-            [{"text": "⏩ Share Deal with Friends", "url": share_url}]
+            [{"text": "🛒 Buy Product Direct (Pic 2 View)", "url": deal["url"]}],
+            [
+                {"text": "📱 Mobiles", "callback_data": "cat_mobile"},
+                {"text": "💻 Laptops", "callback_data": "cat_laptop"},
+                {"text": "🎧 Audio", "callback_data": "cat_audio"}
+            ],
+            [{"text": "📢 Join Main Loot Channel", "url": CHANNEL_LINK}]
         ]
     }
 
@@ -118,6 +110,7 @@ def send_deal(target_id, deal):
         "reply_markup": reply_markup
     })
 
+    # Fallback to Text Message if photo fails
     if res.status_code != 200:
         requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
             "chat_id": target_id,
@@ -129,6 +122,7 @@ def send_deal(target_id, deal):
 
 def broadcast_deal():
     global deal_index
+    # Cyclical rotation to prevent repeating the same deal
     deal = HOT_DEALS[deal_index % len(HOT_DEALS)]
     deal_index += 1
 
@@ -176,6 +170,7 @@ def promote_to_groups():
 def telegram_webhook():
     update = request.get_json(force=True)
 
+    # Category Inline Buttons Trigger
     if "callback_query" in update:
         cb = update["callback_query"]
         cb_id = cb["id"]
@@ -210,38 +205,24 @@ def telegram_webhook():
             conn.close()
 
         if text.startswith("/start"):
-            ref_id = None
-            parts = text.split(" ")
-            if len(parts) > 1 and parts[1].isdigit():
-                ref_id = int(parts[1])
-
             if chat_type == "private":
                 conn = sqlite3.connect("database.db")
                 cursor = conn.cursor()
                 cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (chat_id,))
-                
-                if ref_id and ref_id != chat_id:
-                    cursor.execute("UPDATE users SET referrals = referrals + 1 WHERE user_id = ?", (ref_id,))
-                
                 conn.commit()
                 conn.close()
 
-            ref_link = f"https://t.me/{BOT_USERNAME}?start={chat_id}"
-            
             welcome_text = (
                 "🔥 *Welcome to Daily Price Alert!*\n\n"
-                "Aapko saste se saste active plans aur deals bilkul free me milengi.\n\n"
-                "🔍 *Easy Search Option:*\n"
-                "Kisi bhi item ko khojne ke liye chat me likhein:\n"
-                "👉 `/search watch` ya `/search kettle` ya `/search mobile`\n\n"
-                f"🎁 *Aapka Referral Link:* `{ref_link}`\n\n"
-                "📌 *Categories Select Karein:*👇"
+                "Aapko saste se saste active deals bilkul free me milengi.\n\n"
+                "🔍 *Search Option:*\n"
+                "👉 `/search hp` ya `/search asus` ya `/search samsung`\n\n"
+                "📌 *Niche Category Par Click karke Live Deals Dekhein:*👇"
             )
             cat_keyboard = {
                 "inline_keyboard": [
                     [{"text": "📱 Mobiles", "callback_data": "cat_mobile"}, {"text": "💻 Laptops", "callback_data": "cat_laptop"}],
-                    [{"text": "⌚ Wearables", "callback_data": "cat_wearables"}, {"text": "🎧 Audio", "callback_data": "cat_audio"}],
-                    [{"text": "🏠 Home Appliances", "callback_data": "cat_home"}],
+                    [{"text": "🎧 Audio & Accessories", "callback_data": "cat_audio"}],
                     [{"text": "📢 Join Official Channel", "url": CHANNEL_LINK}]
                 ]
             }
@@ -257,7 +238,7 @@ def telegram_webhook():
             if not query:
                 requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                     "chat_id": chat_id,
-                    "text": "🔍 *Search Format:* `/search phone` ya `/search watch`",
+                    "text": "🔍 *Search Format:* `/search laptop` ya `/search phone`",
                     "parse_mode": "Markdown"
                 })
             else:
@@ -268,7 +249,7 @@ def telegram_webhook():
                 else:
                     requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                         "chat_id": chat_id,
-                        "text": f"❌ '{query}' se match karti koi deal nahi mili."
+                        "text": f"❌ '{query}' se match karti koi active deal nahi mili."
                     })
 
         elif text.startswith("/postdeal"):
@@ -280,7 +261,7 @@ def telegram_webhook():
 def auto_post_cron():
     broadcast_deal()
     promote_to_groups()
-    return "Deal & Group Promo Triggered!", 200
+    return "Deal & Group Promo Triggered Successfully!", 200
 
 @app.route("/")
 def index():
@@ -288,3 +269,4 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+        
