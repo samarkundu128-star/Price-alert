@@ -24,9 +24,7 @@ def init_db():
     try:
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
-        
         cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, referrals INTEGER DEFAULT 0)")
-        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS optin_groups (
                 group_id INTEGER PRIMARY KEY,
@@ -39,17 +37,9 @@ def init_db():
                 last_reset_date TEXT
             )
         """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-        """)
-        
+        cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('promo_interval_mins', '30')")
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_group_limit', '20')")
-        
         conn.commit()
         conn.close()
     except Exception as e:
@@ -193,9 +183,7 @@ def broadcast_deal():
     global deal_index
     deal = HOT_DEALS[deal_index % len(HOT_DEALS)]
     deal_index += 1
-
     send_deal(CHANNEL_ID, deal)
-
     try:
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
@@ -218,11 +206,8 @@ def run_scheduled_promotions():
     except Exception as e:
         return f"DB Error: {e}"
 
-    sent_count = 0
-    skipped_count = 0
-    failed_count = 0
+    sent_count, skipped_count, failed_count = 0, 0, 0
     report_lines = []
-
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     interval_mins = int(get_setting("promo_interval_mins") or 30)
@@ -246,7 +231,7 @@ def run_scheduled_promotions():
             diff_mins = (now - last_dt).total_seconds() / 60
             if diff_mins < interval_mins:
                 skipped_count += 1
-                report_lines.append(f"⏭️ {g_name} — Rate limit (interval not reached)")
+                report_lines.append(f"⏭️ {g_name} — Rate limit")
                 continue
 
         template_text = random.choice(PROMO_TEMPLATES)
@@ -273,12 +258,12 @@ def run_scheduled_promotions():
                 update_group_promo_state(g_id, now.strftime("%Y-%m-%d %H:%M:%S"), daily_cnt, last_reset)
             else:
                 failed_count += 1
-                report_lines.append(f"❌ {g_name} — Permission issue / Failed")
+                report_lines.append(f"❌ {g_name} — Failed")
                 if res.status_code in [403, 400]:
                     handle_bot_removed(g_id, g_name)
         except Exception as ex:
             failed_count += 1
-            report_lines.append(f"❌ {g_name} — Error: {str(ex)}")
+            report_lines.append(f"❌ {g_name} — Error")
 
     if ADMIN_USER_ID != 0 and report_lines:
         report_text = (
@@ -317,7 +302,6 @@ def handle_bot_removed(g_id, g_name):
         cursor.execute("UPDATE optin_groups SET promo_status = 'removed' WHERE group_id = ?", (g_id,))
         conn.commit()
         conn.close()
-
         if ADMIN_USER_ID != 0:
             alert = f"⚠️ *Alert Notification*\nBot was removed or lost permissions in group: *{g_name}* (ID: `{g_id}`)"
             requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
@@ -338,7 +322,6 @@ def telegram_webhook():
         cb_id = cb["id"]
         chat_id = cb["message"]["chat"]["id"]
         data = cb.get("data", "")
-
         requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery", json={"callback_query_id": cb_id})
 
         if data.startswith("cat_"):
@@ -361,7 +344,6 @@ def telegram_webhook():
                 cursor.execute("UPDATE optin_groups SET promo_status = 'active' WHERE group_id = ?", (g_id,))
                 conn.commit()
                 conn.close()
-
                 requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                     "chat_id": chat_id,
                     "text": "✅ *Promotions Enabled Successfully!* PriceDrop Dost deals will now be shared here.",
@@ -378,13 +360,11 @@ def telegram_webhook():
                 cursor.execute("UPDATE optin_groups SET promo_status = 'disabled' WHERE group_id = ?", (g_id,))
                 conn.commit()
                 conn.close()
-
                 requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                     "chat_id": chat_id,
                     "text": "❌ *Promotions Disabled* by group interaction.",
                     "parse_mode": "Markdown"
                 })
-                
                 if ADMIN_USER_ID != 0:
                     requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                         "chat_id": ADMIN_USER_ID,
@@ -398,7 +378,6 @@ def telegram_webhook():
         mcm = update["my_chat_member"]
         chat = mcm["chat"]
         new_status = mcm["new_chat_member"]["status"]
-        
         if chat["type"] in ["group", "supergroup"]:
             g_id = chat["id"]
             g_name = chat.get("title", "Unknown Group")
@@ -487,10 +466,8 @@ def telegram_webhook():
                     cursor.execute("SELECT promo_status, daily_count FROM optin_groups WHERE group_id = ?", (chat_id,))
                     row = cursor.fetchone()
                     conn.close()
-                    
                     status = row[0] if row else "Not registered"
                     cnt = row[1] if row else 0
-                    
                     requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                         "chat_id": chat_id,
                         "text": f"📊 *Promotion Status*\nStatus: `{status}`\nMessages Sent Today: `{cnt}`",
@@ -516,4 +493,10 @@ def telegram_webhook():
 
         elif text.startswith("/about"):
             about_text = (
-                "🔥 *PriceDrop Dost — You
+                "🔥 *PriceDrop Dost — Your Smart Shopping Assistant*\n\n"
+                "📉 Track product prices\n"
+                "🔔 Get price-drop alerts\n"
+                "📱 Find best phones\n"
+                "💻 Find best laptops\n"
+                "🖥️ Find PC deals\n"
+            
