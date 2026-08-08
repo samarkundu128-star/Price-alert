@@ -30,7 +30,7 @@ def init_db():
 
 init_db()
 
-# ================= HOT DEALS DATABASE =================
+# ================= HOT DEALS DATABASE (WORKING AMAZON SEARCH LINKS) =================
 HOT_DEALS = [
     {
         "id": "samsung_m35",
@@ -41,7 +41,7 @@ HOT_DEALS = [
         "discount": "44% OFF 🔥 (Lowest Price Ever!)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0D782C2LK?tag=dailyprice0e-21"
+        "url": "https://www.amazon.in/s?k=Samsung+Galaxy+M35+5G+128GB"
     },
     {
         "id": "asus_vivobook",
@@ -52,7 +52,7 @@ HOT_DEALS = [
         "discount": "34% OFF ⚡ (Heavy Drop)",
         "specs": "• 8GB RAM / 512GB SSD\n• Thin & Light Design\n• Windows 11 + MS Office",
         "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0C3R82KWY?tag=dailyprice0e-21"
+        "url": "https://www.amazon.in/s?k=ASUS+Vivobook+15+i3+12th+Gen"
     },
     {
         "id": "boat_141",
@@ -63,7 +63,7 @@ HOT_DEALS = [
         "discount": "78% OFF 💥 (Loot Deal)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B09N3Z3Y89?tag=dailyprice0e-21"
+        "url": "https://www.amazon.in/s?k=boAt+Airdopes+141"
     }
 ]
 
@@ -154,14 +154,12 @@ def promote_to_groups():
 def telegram_webhook():
     update = request.get_json(force=True)
 
-    # FIX: Callback Query Handling (Categories Button Working Fix)
     if "callback_query" in update:
         cb = update["callback_query"]
         cb_id = cb["id"]
         chat_id = cb["message"]["chat"]["id"]
         data = cb.get("data", "")
 
-        # Acknowledge Telegram Callback Immediately
         requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery", json={"callback_query_id": cb_id})
 
         if data.startswith("cat_"):
@@ -208,7 +206,6 @@ def telegram_webhook():
 
             ref_link = f"https://t.me/{BOT_USERNAME}?start={chat_id}"
             
-            # Starting Interface with Clear Search Guide & Categories
             welcome_text = (
                 "🔥 *Welcome to Daily Price Alert!*\n\n"
                 "Aapko saste se saste active plans aur deals bilkul free me milengi.\n\n"
