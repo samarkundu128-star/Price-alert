@@ -27,7 +27,7 @@ def init_db():
 
 init_db()
 
-# ================= HOT DEALS DATABASE =================
+# ================= HOT DEALS DATABASE (STABLE IMAGES) =================
 HOT_DEALS = [
     {
         "title": "📱 Samsung Galaxy M35 5G (8GB RAM, 128GB)",
@@ -36,8 +36,8 @@ HOT_DEALS = [
         "discount": "44% OFF 🔥 (Lowest Price Ever!)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "images": [
-            "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/71K8iX2BAnL._SL1500_.jpg"
+            "https://i.imgur.com/71d7rfS.jpg",
+            "https://i.imgur.com/71K8iX2.jpg"
         ],
         "url": "https://www.amazon.in/dp/B0D782C2LK"
     },
@@ -48,8 +48,8 @@ HOT_DEALS = [
         "discount": "34% OFF ⚡ (Heavy Drop)",
         "specs": "• 8GB RAM / 512GB SSD\n• Thin & Light Design\n• Windows 11 + MS Office",
         "images": [
-            "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/71x317mKzmL._SL1500_.jpg"
+            "https://i.imgur.com/71S8U9V.jpg",
+            "https://i.imgur.com/71x317m.jpg"
         ],
         "url": "https://www.amazon.in/dp/B0C3R82KWY"
     },
@@ -60,14 +60,14 @@ HOT_DEALS = [
         "discount": "78% OFF 💥 (Loot Deal)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "images": [
-            "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/61i2+b6P-XL._SL1500_.jpg"
+            "https://i.imgur.com/61KNJ34.jpg",
+            "https://i.imgur.com/61i2b6P.jpg"
         ],
         "url": "https://www.amazon.in/dp/B09N3Z3Y89"
     }
 ]
 
-# ================= TELEGRAM SENDING FUNCTIONS =================
+# ================= TELEGRAM API SENDER =================
 def send_deal_to_target(target_id, deal):
     caption = (
         f"🔥 *{deal['title']}*\n\n"
@@ -78,7 +78,6 @@ def send_deal_to_target(target_id, deal):
         f"📢 Daily Price Updates: {CHANNEL_ID}"
     )
 
-    # 1. Send Media Group (Photos)
     media = []
     for idx, img in enumerate(deal["images"]):
         item = {"type": "photo", "media": img}
@@ -87,16 +86,17 @@ def send_deal_to_target(target_id, deal):
             item["parse_mode"] = "Markdown"
         media.append(item)
 
+    # Media Group Request
     try:
-        req_media = requests.post(f"{TELEGRAM_API_URL}/sendMediaGroup", json={
+        res = requests.post(f"{TELEGRAM_API_URL}/sendMediaGroup", json={
             "chat_id": target_id,
             "media": media
         })
-        logging.info(f"Media Group Response ({target_id}): {req_media.status_code}")
+        logging.info(f"MediaGroup Sent ({target_id}): {res.status_code} - {res.text}")
     except Exception as e:
-        logging.error(f"Error sending media group: {e}")
+        logging.error(f"Media Group Error: {e}")
 
-    # 2. Send Buy Button Message
+    # Buy Button Request
     reply_markup = {
         "inline_keyboard": [
             [{"text": "🛒 Direct Buy Product Here", "url": deal["url"]}]
@@ -110,15 +110,15 @@ def send_deal_to_target(target_id, deal):
             "reply_markup": reply_markup
         })
     except Exception as e:
-        logging.error(f"Error sending buy button: {e}")
+        logging.error(f"Buy Button Error: {e}")
 
 def broadcast_deal():
     deal = random.choice(HOT_DEALS)
     
-    # Send to Channel
+    # 1. Post to Channel
     send_deal_to_target(CHANNEL_ID, deal)
 
-    # Send to Personal Users
+    # 2. Post to Personal Users
     try:
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
@@ -129,7 +129,7 @@ def broadcast_deal():
         for user in users:
             send_deal_to_target(user[0], deal)
     except Exception as e:
-        logging.error(f"DB Fetch Error: {e}")
+        logging.error(f"DB Read Error: {e}")
 
 # ================= FLASK ROUTES =================
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
@@ -140,7 +140,6 @@ def telegram_webhook():
         text = update["message"].get("text", "")
 
         if text.startswith("/start"):
-            # Save User
             try:
                 conn = sqlite3.connect("database.db")
                 cursor = conn.cursor()
@@ -148,19 +147,16 @@ def telegram_webhook():
                 conn.commit()
                 conn.close()
             except Exception as e:
-                logging.error(f"Start DB Error: {e}")
+                logging.error(f"DB Write Error: {e}")
 
             welcome_text = (
                 "🔥 *Welcome to Daily Price Update!*\n\n"
-                "Ab aapko sabse sasti aur dhamaka deals *Personal Chat + Channel* dono jagah milengi!\n\n"
-                "📢 *Humara Main Deals Channel zaroor join karein:*\n"
-                f"👉 [Click Here to Join Channel]({CHANNEL_LINK})\n\n"
-                "⚡ _Naye offers automatic update hote rahenge!_"
+                "Ab aapko sasti deals *Personal Chat + Channel* dono jagah milengi!\n\n"
+                "📢 *Join Channel:*\n"
+                f"👉 [Click Here to Join Channel]({CHANNEL_LINK})"
             )
             reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "📢 Join Channel", "url": CHANNEL_LINK}]
-                ]
+                "inline_keyboard": [[{"text": "📢 Join Channel", "url": CHANNEL_LINK}]]
             }
             requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                 "chat_id": chat_id,
@@ -190,3 +186,4 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+    
