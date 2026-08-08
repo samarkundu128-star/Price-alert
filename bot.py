@@ -3,8 +3,6 @@ import logging
 import os
 import random
 import sqlite3
-import threading
-import time
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -95,7 +93,7 @@ async def send_multi_image_deal():
     keyboard = [[InlineKeyboardButton("🛒 Direct Buy Product Here", url=deal["url"])]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # 1. Channel Broadcast
+    # Channel Broadcast
     try:
         await ptb_app.bot.send_media_group(chat_id=CHANNEL_ID, media=media_group)
         await ptb_app.bot.send_message(
@@ -104,11 +102,11 @@ async def send_multi_image_deal():
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
-        logging.info("Deal posted to Channel!")
+        logging.info("Deal posted to channel!")
     except Exception as e:
         logging.error(f"Channel Broadcast Error: {e}")
 
-    # 2. Users Broadcast
+    # Users Broadcast
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users")
@@ -128,26 +126,6 @@ async def send_multi_image_deal():
         except Exception as e:
             logging.error(f"User Broadcast Error: {e}")
 
-# ================= BACKGROUND AUTO-POSTING LOOP (20-30 SECONDS) =================
-async def auto_post_loop():
-    while True:
-        try:
-            # 20 se 30 seconds ke beech random interval choose karega
-            wait_time = random.randint(20, 30)
-            await asyncio.sleep(wait_time)
-            await send_multi_image_deal()
-        except Exception as e:
-            logging.error(f"Error in auto_post_loop: {e}")
-            await asyncio.sleep(10)
-
-def start_background_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(auto_post_loop())
-
-# Background Thread me auto-poster start karein
-threading.Thread(target=start_background_loop, daemon=True).start()
-
 # ================= TELEGRAM HANDLERS =================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -160,7 +138,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = (
         "🔥 **Welcome to Daily Price Update!**\n\n"
-        "Ab aapko sabse sasti aur dhamaka deals **Personal Chat + Channel** dono jagah har kuch seconds me milengi!\n\n"
+        "Ab aapko sabse sasti aur dhamaka deals **Personal Chat + Channel** dono jagah milengi!\n\n"
         "📢 **Humara Main Deals Channel zaroor join karein:**\n"
         f"👉 [Click Here to Join Channel]({CHANNEL_LINK})\n\n"
         "⚡ *Naye offers automatic update hote rahenge!*"
@@ -176,7 +154,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_multi_image_deal()
-    await update.message.reply_text("✅ Deal instant post kar di gayi hai!")
+    await update.message.reply_text("✅ Instant Deal Post kar di gayi hai!")
 
 ptb_app.add_handler(CommandHandler("start", start_command))
 ptb_app.add_handler(CommandHandler("postdeal", post_now_command))
@@ -193,9 +171,19 @@ def respond():
     loop.close()
     return "ok", 200
 
+# Continuous Auto-Posting Trigger Route
+@app.route("/cron-auto-post")
+def auto_post_cron():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(send_multi_image_deal())
+    loop.close()
+    return "Deal Posted!", 200
+
 @app.route("/")
 def index():
-    return "20-30 Second Auto-Deals Bot Active!", 200
+    return "Daily Deals Bot Active!", 200
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(ptb_app.initialize())
+        
