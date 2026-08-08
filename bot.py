@@ -30,7 +30,7 @@ def init_db():
 
 init_db()
 
-# ================= REAL ACCURATE AMAZON DEALS (PERMANENT DIRECT LINKS) =================
+# ================= ERROR-FREE WORKING DEALS =================
 HOT_DEALS = [
     {
         "id": "hp_15_ultra",
@@ -41,7 +41,7 @@ HOT_DEALS = [
         "discount": "10% OFF 🔥 (Freedom Sale Mega Deal)",
         "specs": "• Intel Arc Graphics\n• 15.6\" FHD IPS Display\n• Win 11 + MS Office 2024",
         "image": "https://m.media-amazon.com/images/I/71XvO-0bO5L._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0D131NS5K?tag=dailyprice0e-21&linkCode=osi"
+        "url": "https://www.amazon.in/s?k=HP+15+Intel+Core+Ultra+5+125H"
     },
     {
         "id": "asus_vivobook_16",
@@ -52,7 +52,7 @@ HOT_DEALS = [
         "discount": "22% OFF ⚡ (Limited Time Deal)",
         "specs": "• 16GB DDR5 / 512GB SSD\n• Thin & Light Design\n• ASUS AI Features",
         "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0CX58S11D?tag=dailyprice0e-21&linkCode=osi"
+        "url": "https://www.amazon.in/s?k=ASUS+Vivobook+16+Intel+Core+Ultra+5"
     },
     {
         "id": "samsung_m35",
@@ -63,7 +63,7 @@ HOT_DEALS = [
         "discount": "20% OFF 🔥 (Official Price)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B0D782C2LK?tag=dailyprice0e-21&linkCode=osi"
+        "url": "https://www.amazon.in/s?k=Samsung+Galaxy+M35+5G+128GB"
     },
     {
         "id": "boat_141",
@@ -74,7 +74,7 @@ HOT_DEALS = [
         "discount": "71% OFF 💥 (Best Seller)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-        "url": "https://www.amazon.in/dp/B09N3Z3Y89?tag=dailyprice0e-21&linkCode=osi"
+        "url": "https://www.amazon.in/s?k=boAt+Airdopes+141+TWS+Earbuds"
     }
 ]
 
@@ -265,3 +265,4 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+        
