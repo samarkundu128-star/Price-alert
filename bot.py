@@ -1,16 +1,15 @@
-import asyncio
-import logging
 import os
 import random
 import sqlite3
+import requests
+import logging
 from flask import Flask, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from telegram.ext import Application, CommandHandler, ContextTypes
 
 # ================= CONFIGURATION =================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8827005241:AAG-mAj8EkJmMrSi2KC8FobuucBwbFxJofY")
 CHANNEL_ID = "@daily_price_alert"
 CHANNEL_LINK = "https://t.me/daily_price_alert"
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 app = Flask(__name__)
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -38,8 +37,7 @@ HOT_DEALS = [
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "images": [
             "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/71K8iX2BAnL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/81P8y-d3kYL._SL1500_.jpg"
+            "https://m.media-amazon.com/images/I/71K8iX2BAnL._SL1500_.jpg"
         ],
         "url": "https://www.amazon.in/dp/B0D782C2LK"
     },
@@ -51,8 +49,7 @@ HOT_DEALS = [
         "specs": "• 8GB RAM / 512GB SSD\n• Thin & Light Design\n• Windows 11 + MS Office",
         "images": [
             "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/71x317mKzmL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/71L-fPzN1YL._SL1500_.jpg"
+            "https://m.media-amazon.com/images/I/71x317mKzmL._SL1500_.jpg"
         ],
         "url": "https://www.amazon.in/dp/B0C3R82KWY"
     },
@@ -64,52 +61,64 @@ HOT_DEALS = [
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "images": [
             "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/61i2+b6P-XL._SL1500_.jpg",
-            "https://m.media-amazon.com/images/I/61M-f13qf0L._SL1500_.jpg"
+            "https://m.media-amazon.com/images/I/61i2+b6P-XL._SL1500_.jpg"
         ],
         "url": "https://www.amazon.in/dp/B09N3Z3Y89"
     }
 ]
 
-ptb_app = Application.builder().token(BOT_TOKEN).build()
-
-# Multi-Photo Broadcaster Function
-async def send_multi_image_deal():
-    deal = random.choice(HOT_DEALS)
-    
+# ================= TELEGRAM SENDING FUNCTIONS =================
+def send_deal_to_target(target_id, deal):
     caption = (
-        f"🔥 **{deal['title']}**\n\n"
-        f"❌ M.R.P.: ~~{deal['orig_price']}~~\n"
-        f"💰 **Deal Price: {deal['deal_price']}**\n"
-        f"⚡ **Discount:** {deal['discount']}\n\n"
-        f"📌 **Key Features:**\n{deal['specs']}\n\n"
+        f"🔥 *{deal['title']}*\n\n"
+        f"❌ M.R.P.: ~{deal['orig_price']}~\n"
+        f"💰 *Deal Price: {deal['deal_price']}*\n"
+        f"⚡ *Discount:* {deal['discount']}\n\n"
+        f"📌 *Key Features:*\n{deal['specs']}\n\n"
         f"📢 Daily Price Updates: {CHANNEL_ID}"
     )
 
-    media_group = []
-    for idx, img_url in enumerate(deal["images"]):
+    # 1. Send Media Group (Photos)
+    media = []
+    for idx, img in enumerate(deal["images"]):
+        item = {"type": "photo", "media": img}
         if idx == 0:
-            media_group.append(InputMediaPhoto(media=img_url, caption=caption, parse_mode="Markdown"))
-        else:
-            media_group.append(InputMediaPhoto(media=img_url))
+            item["caption"] = caption
+            item["parse_mode"] = "Markdown"
+        media.append(item)
 
-    keyboard = [[InlineKeyboardButton("🛒 Direct Buy Product Here", url=deal["url"])]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # 1. CHANNEL BROADCAST
     try:
-        await ptb_app.bot.send_media_group(chat_id=CHANNEL_ID, media=media_group)
-        await ptb_app.bot.send_message(
-            chat_id=CHANNEL_ID, 
-            text=f"👉 **Click below to buy {deal['title']}:**", 
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-        logging.info("SUCCESS: Posted to Channel!")
+        req_media = requests.post(f"{TELEGRAM_API_URL}/sendMediaGroup", json={
+            "chat_id": target_id,
+            "media": media
+        })
+        logging.info(f"Media Group Response ({target_id}): {req_media.status_code}")
     except Exception as e:
-        logging.error(f"Channel Error: {e}")
+        logging.error(f"Error sending media group: {e}")
 
-    # 2. USER BROADCAST
+    # 2. Send Buy Button Message
+    reply_markup = {
+        "inline_keyboard": [
+            [{"text": "🛒 Direct Buy Product Here", "url": deal["url"]}]
+        ]
+    }
+    try:
+        requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+            "chat_id": target_id,
+            "text": f"👉 *Click below to buy {deal['title']}:*",
+            "parse_mode": "Markdown",
+            "reply_markup": reply_markup
+        })
+    except Exception as e:
+        logging.error(f"Error sending buy button: {e}")
+
+def broadcast_deal():
+    deal = random.choice(HOT_DEALS)
+    
+    # Send to Channel
+    send_deal_to_target(CHANNEL_ID, deal)
+
+    # Send to Personal Users
     try:
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
@@ -118,79 +127,66 @@ async def send_multi_image_deal():
         conn.close()
 
         for user in users:
-            try:
-                await ptb_app.bot.send_media_group(chat_id=user[0], media=media_group)
-                await ptb_app.bot.send_message(
-                    chat_id=user[0], 
-                    text=f"👉 **Click below to buy {deal['title']}:**", 
-                    reply_markup=reply_markup,
-                    parse_mode="Markdown"
-                )
-                await asyncio.sleep(0.1)
-            except Exception as user_err:
-                logging.error(f"User {user[0]} Send Error: {user_err}")
-    except Exception as db_err:
-        logging.error(f"User DB Error: {db_err}")
-
-# Safe Async Executor for Flask
-def run_async(coro):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-# Telegram Handlers
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    try:
-        conn = sqlite3.connect("database.db")
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-        conn.commit()
-        conn.close()
+            send_deal_to_target(user[0], deal)
     except Exception as e:
-        logging.error(f"Start DB Error: {e}")
+        logging.error(f"DB Fetch Error: {e}")
 
-    welcome_text = (
-        "🔥 **Welcome to Daily Price Update!**\n\n"
-        "Ab aapko sabse sasti aur dhamaka deals **Personal Chat + Channel** dono jagah milengi!\n\n"
-        "📢 **Humara Main Deals Channel zaroor join karein:**\n"
-        f"👉 [Click Here to Join Channel]({CHANNEL_LINK})\n\n"
-        "⚡ *Naye offers automatic update hote rahenge!*"
-    )
-
-    keyboard = [[InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)]]
-    await update.message.reply_text(
-        welcome_text, 
-        parse_mode="Markdown", 
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
-
-async def post_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_multi_image_deal()
-    await update.message.reply_text("✅ Instant Deal Post kar di gayi hai!")
-
-ptb_app.add_handler(CommandHandler("start", start_command))
-ptb_app.add_handler(CommandHandler("postdeal", post_now_command))
-
-# Flask Routes
+# ================= FLASK ROUTES =================
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def respond():
-    update_data = request.get_json(force=True)
-    update = Update.de_json(update_data, ptb_app.bot)
-    run_async(ptb_app.process_update(update))
+def telegram_webhook():
+    update = request.get_json(force=True)
+    if "message" in update:
+        chat_id = update["message"]["chat"]["id"]
+        text = update["message"].get("text", "")
+
+        if text.startswith("/start"):
+            # Save User
+            try:
+                conn = sqlite3.connect("database.db")
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (chat_id,))
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                logging.error(f"Start DB Error: {e}")
+
+            welcome_text = (
+                "🔥 *Welcome to Daily Price Update!*\n\n"
+                "Ab aapko sabse sasti aur dhamaka deals *Personal Chat + Channel* dono jagah milengi!\n\n"
+                "📢 *Humara Main Deals Channel zaroor join karein:*\n"
+                f"👉 [Click Here to Join Channel]({CHANNEL_LINK})\n\n"
+                "⚡ _Naye offers automatic update hote rahenge!_"
+            )
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "📢 Join Channel", "url": CHANNEL_LINK}]
+                ]
+            }
+            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": welcome_text,
+                "parse_mode": "Markdown",
+                "reply_markup": reply_markup,
+                "disable_web_page_preview": True
+            })
+
+        elif text.startswith("/postdeal"):
+            broadcast_deal()
+            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": "✅ Deal instant post kar di gayi hai!"
+            })
+
     return "ok", 200
 
 @app.route("/cron-auto-post")
 def auto_post_cron():
-    run_async(send_multi_image_deal())
+    broadcast_deal()
     return "Deal Triggered Successfully!", 200
 
 @app.route("/")
 def index():
     return "Daily Deals Bot Active!", 200
 
-run_async(ptb_app.initialize())
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
