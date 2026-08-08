@@ -27,7 +27,7 @@ def init_db():
 
 init_db()
 
-# ================= HOT DEALS DATABASE (STABLE IMAGES) =================
+# ================= HOT DEALS DATABASE =================
 HOT_DEALS = [
     {
         "title": "📱 Samsung Galaxy M35 5G (8GB RAM, 128GB)",
@@ -35,10 +35,7 @@ HOT_DEALS = [
         "deal_price": "₹13,999",
         "discount": "44% OFF 🔥 (Lowest Price Ever!)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
-        "images": [
-            "https://i.imgur.com/71d7rfS.jpg",
-            "https://i.imgur.com/71K8iX2.jpg"
-        ],
+        "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
         "url": "https://www.amazon.in/dp/B0D782C2LK"
     },
     {
@@ -47,10 +44,7 @@ HOT_DEALS = [
         "deal_price": "₹32,990",
         "discount": "34% OFF ⚡ (Heavy Drop)",
         "specs": "• 8GB RAM / 512GB SSD\n• Thin & Light Design\n• Windows 11 + MS Office",
-        "images": [
-            "https://i.imgur.com/71S8U9V.jpg",
-            "https://i.imgur.com/71x317m.jpg"
-        ],
+        "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
         "url": "https://www.amazon.in/dp/B0C3R82KWY"
     },
     {
@@ -59,10 +53,7 @@ HOT_DEALS = [
         "deal_price": "₹999",
         "discount": "78% OFF 💥 (Loot Deal)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
-        "images": [
-            "https://i.imgur.com/61KNJ34.jpg",
-            "https://i.imgur.com/61i2b6P.jpg"
-        ],
+        "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
         "url": "https://www.amazon.in/dp/B09N3Z3Y89"
     }
 ]
@@ -78,39 +69,24 @@ def send_deal_to_target(target_id, deal):
         f"📢 Daily Price Updates: {CHANNEL_ID}"
     )
 
-    media = []
-    for idx, img in enumerate(deal["images"]):
-        item = {"type": "photo", "media": img}
-        if idx == 0:
-            item["caption"] = caption
-            item["parse_mode"] = "Markdown"
-        media.append(item)
-
-    # Media Group Request
-    try:
-        res = requests.post(f"{TELEGRAM_API_URL}/sendMediaGroup", json={
-            "chat_id": target_id,
-            "media": media
-        })
-        logging.info(f"MediaGroup Sent ({target_id}): {res.status_code} - {res.text}")
-    except Exception as e:
-        logging.error(f"Media Group Error: {e}")
-
-    # Buy Button Request
     reply_markup = {
         "inline_keyboard": [
             [{"text": "🛒 Direct Buy Product Here", "url": deal["url"]}]
         ]
     }
+
+    # Send Photo with Caption and Buy Button directly
     try:
-        requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+        res = requests.post(f"{TELEGRAM_API_URL}/sendPhoto", json={
             "chat_id": target_id,
-            "text": f"👉 *Click below to buy {deal['title']}:*",
+            "photo": deal["image"],
+            "caption": caption,
             "parse_mode": "Markdown",
             "reply_markup": reply_markup
         })
+        logging.info(f"Photo Deal Sent ({target_id}): {res.status_code}")
     except Exception as e:
-        logging.error(f"Buy Button Error: {e}")
+        logging.error(f"Send Photo Error: {e}")
 
 def broadcast_deal():
     deal = random.choice(HOT_DEALS)
@@ -186,4 +162,4 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-    
+        
