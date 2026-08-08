@@ -30,7 +30,7 @@ def init_db():
 
 init_db()
 
-# ================= HOT DEALS DATABASE (WORKING AMAZON SEARCH LINKS) =================
+# ================= EXPANDED CATALOG (DIRECT PRODUCT LINKS & ACCURATE PRICES) =================
 HOT_DEALS = [
     {
         "id": "samsung_m35",
@@ -41,7 +41,7 @@ HOT_DEALS = [
         "discount": "44% OFF 🔥 (Lowest Price Ever!)",
         "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
         "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=Samsung+Galaxy+M35+5G+128GB"
+        "url": "https://www.amazon.in/dp/B0D782C2LK"
     },
     {
         "id": "asus_vivobook",
@@ -52,7 +52,7 @@ HOT_DEALS = [
         "discount": "34% OFF ⚡ (Heavy Drop)",
         "specs": "• 8GB RAM / 512GB SSD\n• Thin & Light Design\n• Windows 11 + MS Office",
         "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=ASUS+Vivobook+15+i3+12th+Gen"
+        "url": "https://www.amazon.in/dp/B0C3R82KWY"
     },
     {
         "id": "boat_141",
@@ -63,7 +63,40 @@ HOT_DEALS = [
         "discount": "78% OFF 💥 (Loot Deal)",
         "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
         "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-        "url": "https://www.amazon.in/s?k=boAt+Airdopes+141"
+        "url": "https://www.amazon.in/dp/B09N3Z3Y89"
+    },
+    {
+        "id": "fireboltt_watch",
+        "category": "wearables",
+        "title": "⌚ Fire-Boltt Ninja Call Pro Plus Smartwatch",
+        "orig_price": "₹9,999",
+        "deal_price": "₹1,199",
+        "discount": "88% OFF 💥 (Super Saver)",
+        "specs": "• 1.83 inch Display\n• Bluetooth Calling\n• 100+ Sports Modes",
+        "image": "https://m.media-amazon.com/images/I/61S9aEhe1LU._SL1500_.jpg",
+        "url": "https://www.amazon.in/dp/B0BF54972T"
+    },
+    {
+        "id": "pigeon_kettle",
+        "category": "home",
+        "title": "🫖 Pigeon Electric Kettle 1.5 Litre",
+        "orig_price": "₹1,249",
+        "deal_price": "₹599",
+        "discount": "52% OFF 🔥 (Home Essential)",
+        "specs": "• Stainless Steel Body\n• Auto Shut-Off\n• 1500W Fast Boiling",
+        "image": "https://m.media-amazon.com/images/I/51DF6085f-L._SL1000_.jpg",
+        "url": "https://www.amazon.in/dp/B07WMS7533"
+    },
+    {
+        "id": "sanDisk_pendrive",
+        "category": "accessories",
+        "title": "💾 SanDisk Cruzer Blade 64GB USB Flash Drive",
+        "orig_price": "₹1,100",
+        "deal_price": "₹389",
+        "discount": "65% OFF ⚡ (Budget Deal)",
+        "specs": "• Compact & Portable\n• SecureAccess Software\n• High Speed Transfer",
+        "image": "https://m.media-amazon.com/images/I/61DjL1X8e5L._SL1500_.jpg",
+        "url": "https://www.amazon.in/dp/B00BX5F3O4"
     }
 ]
 
@@ -96,6 +129,7 @@ def send_deal(target_id, deal):
         "reply_markup": reply_markup
     })
 
+    # Fallback to Text if photo sending fails
     if res.status_code != 200:
         requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
             "chat_id": target_id,
@@ -107,6 +141,7 @@ def send_deal(target_id, deal):
 
 def broadcast_deal():
     global deal_index
+    # Guaranteed rotation so the same product is never sent back-to-back
     deal = HOT_DEALS[deal_index % len(HOT_DEALS)]
     deal_index += 1
 
@@ -209,16 +244,17 @@ def telegram_webhook():
             welcome_text = (
                 "🔥 *Welcome to Daily Price Alert!*\n\n"
                 "Aapko saste se saste active plans aur deals bilkul free me milengi.\n\n"
-                "🔍 *Product Search Kaise Karein?*\n"
+                "🔍 *Easy Search Option:*\n"
                 "Kisi bhi item ko khojne ke liye chat me likhein:\n"
-                "👉 `/search phone` ya `/search laptop` ya `/search audio`\n\n"
+                "👉 `/search watch` ya `/search kettle` ya `/search mobile`\n\n"
                 f"🎁 *Aapka Referral Link:* `{ref_link}`\n\n"
-                "📌 *Categories Se Deals Dekhein:*👇"
+                "📌 *Categories Select Karein:*👇"
             )
             cat_keyboard = {
                 "inline_keyboard": [
-                    [{"text": "📱 Mobiles Deals", "callback_data": "cat_mobile"}, {"text": "💻 Laptop Deals", "callback_data": "cat_laptop"}],
-                    [{"text": "🎧 Audio & Earbuds", "callback_data": "cat_audio"}],
+                    [{"text": "📱 Mobiles", "callback_data": "cat_mobile"}, {"text": "💻 Laptops", "callback_data": "cat_laptop"}],
+                    [{"text": "⌚ Wearables", "callback_data": "cat_wearables"}, {"text": "🎧 Audio", "callback_data": "cat_audio"}],
+                    [{"text": "🏠 Home Appliances", "callback_data": "cat_home"}, {"text": "💾 Accessories", "callback_data": "cat_accessories"}],
                     [{"text": "📢 Join Official Channel", "url": CHANNEL_LINK}]
                 ]
             }
@@ -234,7 +270,7 @@ def telegram_webhook():
             if not query:
                 requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
                     "chat_id": chat_id,
-                    "text": "🔍 *Search Format:* `/search phone` ya `/search laptop`",
+                    "text": "🔍 *Search Format:* `/search phone` ya `/search watch`",
                     "parse_mode": "Markdown"
                 })
             else:
@@ -265,4 +301,3 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-    
