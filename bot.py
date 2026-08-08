@@ -17,11 +17,14 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=lo
 
 # ================= DATABASE SETUP =================
 def init_db():
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database Init Error: {e}")
 
 init_db()
 
@@ -93,7 +96,7 @@ async def send_multi_image_deal():
     keyboard = [[InlineKeyboardButton("🛒 Direct Buy Product Here", url=deal["url"])]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Channel Broadcast
+    # 1. CHANNEL BROADCAST
     try:
         await ptb_app.bot.send_media_group(chat_id=CHANNEL_ID, media=media_group)
         await ptb_app.bot.send_message(
@@ -102,39 +105,45 @@ async def send_multi_image_deal():
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
-        logging.info("Deal posted to channel!")
+        logging.info("SUCCESS: Posted to Channel!")
     except Exception as e:
-        logging.error(f"Channel Broadcast Error: {e}")
+        logging.error(f"Channel Error: {e}")
 
-    # Users Broadcast
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users")
-    users = cursor.fetchall()
-    conn.close()
+    # 2. USER BROADCAST
+    try:
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users")
+        users = cursor.fetchall()
+        conn.close()
 
-    for user in users:
-        try:
-            await ptb_app.bot.send_media_group(chat_id=user[0], media=media_group)
-            await ptb_app.bot.send_message(
-                chat_id=user[0], 
-                text=f"👉 **Click below to buy {deal['title']}:**", 
-                reply_markup=reply_markup,
-                parse_mode="Markdown"
-            )
-            await asyncio.sleep(0.1)
-        except Exception as e:
-            logging.error(f"User Broadcast Error: {e}")
+        for user in users:
+            try:
+                await ptb_app.bot.send_media_group(chat_id=user[0], media=media_group)
+                await ptb_app.bot.send_message(
+                    chat_id=user[0], 
+                    text=f"👉 **Click below to buy {deal['title']}:**", 
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+                await asyncio.sleep(0.1)
+            except Exception as user_err:
+                logging.error(f"User {user[0]} Send Error: {user_err}")
+    except Exception as db_err:
+        logging.error(f"User DB Error: {db_err}")
 
 # ================= TELEGRAM HANDLERS =================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Start DB Error: {e}")
 
     welcome_text = (
         "🔥 **Welcome to Daily Price Update!**\n\n"
@@ -171,14 +180,14 @@ def respond():
     loop.close()
     return "ok", 200
 
-# Continuous Auto-Posting Trigger Route
+# Continuous Auto-Posting Trigger Route (CRON-JOB ROUTE)
 @app.route("/cron-auto-post")
 def auto_post_cron():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(send_multi_image_deal())
     loop.close()
-    return "Deal Posted!", 200
+    return "Deal Triggered Successfully!", 200
 
 @app.route("/")
 def index():
@@ -186,4 +195,3 @@ def index():
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(ptb_app.initialize())
-        
