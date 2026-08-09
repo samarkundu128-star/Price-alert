@@ -3,7 +3,7 @@ import sqlite3
 import requests
 import logging
 import random
-import hashlib
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from flask import Flask, request
 
@@ -16,12 +16,10 @@ ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 AMAZON_TAG = "pricedropdost-21"
-DEDUP_HOURS = 30          # Same deal kitne hours tak nahi post hoga
+DEDUP_HOURS = 30
 
 app = Flask(__name__)
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-
-deal_index = 0
 
 # ================= DATABASE SETUP =================
 def init_db():
@@ -43,14 +41,54 @@ def init_db():
         """)
         cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         cursor.execute("CREATE TABLE IF NOT EXISTS posted_deals (deal_id TEXT PRIMARY KEY, posted_at TEXT)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deals (
+                id TEXT PRIMARY KEY,
+                category TEXT,
+                title TEXT,
+                orig_price TEXT,
+                deal_price TEXT,
+                discount TEXT,
+                specs TEXT,
+                image TEXT,
+                url TEXT
+            )
+        """)
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('promo_interval_mins', '30')")
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_group_limit', '20')")
+        
+        cursor.execute("SELECT COUNT(*) FROM deals")
+        if cursor.fetchone()[0] == 0:
+            default_deals = [
+                ("hp_15_ultra", "laptop", "💻 HP 15, Intel Core Ultra 5 125H (16GB RAM, 1TB SSD)", "₹86,451", "₹77,990", "10% OFF 🔥", "• Intel Arc Graphics\n• 15.6\" FHD IPS Display", "https://m.media-amazon.com/images/I/71XvO-0bO5L._SL1500_.jpg", f"https://www.amazon.in/dp/B0D131NS5K?tag={AMAZON_TAG}"),
+                ("samsung_m35", "mobile", "📱 Samsung Galaxy M35 5G (8GB RAM, 128GB)", "₹24,999", "₹19,999", "20% OFF 🔥", "• 6000mAh Battery\n• 120Hz Super AMOLED", "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg", f"https://www.amazon.in/dp/B0D782C2LK?tag={AMAZON_TAG}")
+            ]
+            cursor.executemany("INSERT OR IGNORE INTO deals VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", default_deals)
+
         conn.commit()
         conn.close()
     except Exception as e:
         logging.error(f"Database Init Error: {e}")
 
 init_db()
+
+def get_all_deals():
+    try:
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, category, title, orig_price, deal_price, discount, specs, image, url FROM deals")
+        rows = cursor.fetchall()
+        conn.close()
+        deals = []
+        for r in rows:
+            deals.append({
+                "id": r[0], "category": r[1], "title": r[2], "orig_price": r[3],
+                "deal_price": r[4], "discount": r[5], "specs": r[6], "image": r[7], "url": r[8]
+            })
+        return deals
+    except Exception as e:
+        logging.error(f"Get deals error: {e}")
+        return []
 
 def get_setting(key):
     try:
@@ -63,15 +101,24 @@ def get_setting(key):
     except Exception:
         return None
 
-def set_setting(key, value):
+# ================= WEB SCRAPING UTILITY =================
+def scrape_deal_page(target_url: str):
+    """BeautifulSoup ka use karke public web page se content parse karne ka function"""
     try:
-        conn = sqlite3.connect("database.db")
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
-        conn.commit()
-        conn.close()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+        }
+        response = requests.get(target_url, headers=headers, timeout=8)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Example extraction logic for title
+            title_element = soup.find('span', {'id': 'productTitle'})
+            title = title_element.text.strip() if title_element else "Live Deal Item"
+            return {"title": title, "url": target_url}
     except Exception as e:
-        logging.error(f"Setting Update Error: {e}")
+        logging.error(f"Scraping error for {target_url}: {e}")
+    return None
 
 # ================= DUPLICATE & LINK VALIDATION =================
 def is_already_posted(deal_id: str) -> bool:
@@ -108,7 +155,6 @@ def mark_as_posted(deal_id: str):
         logging.error(f"Mark posted error: {e}")
 
 def check_link_is_active(url: str) -> bool:
-    """Ye function check karega ki Amazon link live hai ya 'Looking for something' error de rahi hai"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.get(url, headers=headers, timeout=6)
@@ -130,77 +176,15 @@ PROMO_TEMPLATES = [
         "💸 Price-drop alerts • 🛒 Smart deals\n\n"
         f"📢 Daily Deals:\n👉 {CHANNEL_LINK}\n\n"
         f"🤖 Try PriceDrop Dost:\n👉 @{BOT_USERNAME}"
-    ),
-    (
-        "💸 Deal miss mat karo!\n\n"
-        "PriceDrop Dost automatically finds useful deals & price drops.\n\n"
-        f"📢 Daily deals:\n👉 {CHANNEL_LINK}\n\n"
-        f"🤖 Open Bot:\n👉 @{BOT_USERNAME}"
-    ),
-    (
-        "⚡ Smart Shopping on Telegram\n\n"
-        "🔥 Price drops\n📱 Best phones\n💻 Best laptops\n🛒 Amazon + Flipkart deals\n\n"
-        f"👉 {CHANNEL_LINK}\n\n"
-        f"🤖 @{BOT_USERNAME}"
     )
-]
-
-# ================= HOT DEALS CATALOG =================
-HOT_DEALS = [
-    {
-        "id": "hp_15_ultra",
-        "category": "laptop",
-        "title": "💻 HP 15, Intel Core Ultra 5 125H (16GB RAM, 1TB SSD)",
-        "orig_price": "₹86,451",
-        "deal_price": "₹77,990",
-        "discount": "10% OFF 🔥 (Freedom Sale Mega Deal)",
-        "specs": "• Intel Arc Graphics\n• 15.6\" FHD IPS Display\n• Win 11 + MS Office 2024",
-        "image": "https://m.media-amazon.com/images/I/71XvO-0bO5L._SL1500_.jpg",
-        "url": f"https://www.amazon.in/dp/B0D131NS5K?tag={AMAZON_TAG}"
-    },
-    {
-        "id": "asus_vivobook_16",
-        "category": "laptop",
-        "title": "💻 ASUS Vivobook 16, Intel Core Ultra 5",
-        "orig_price": "₹93,990",
-        "deal_price": "₹72,990",
-        "discount": "22% OFF ⚡ (Limited Time Deal)",
-        "specs": "• 16GB DDR5 / 512GB SSD\n• Thin & Light Design\n• ASUS AI Features",
-        "image": "https://m.media-amazon.com/images/I/71S8U9VzLTL._SL1500_.jpg",
-        "url": f"https://www.amazon.in/dp/B0CX58S11D?tag={AMAZON_TAG}"
-    },
-    {
-        "id": "samsung_m35",
-        "category": "mobile",
-        "title": "📱 Samsung Galaxy M35 5G (8GB RAM, 128GB)",
-        "orig_price": "₹24,999",
-        "deal_price": "₹19,999",
-        "discount": "20% OFF 🔥 (Official Price)",
-        "specs": "• 6000mAh Battery\n• 120Hz Super AMOLED Display\n• 50MP OIS Camera",
-        "image": "https://m.media-amazon.com/images/I/71d7rfSl0wL._SL1500_.jpg",
-        "url": f"https://www.amazon.in/dp/B0D782C2LK?tag={AMAZON_TAG}"
-    },
-    {
-        "id": "boat_141",
-        "category": "audio",
-        "title": "🎧 boAt Airdopes 141 TWS Earbuds",
-        "orig_price": "₹4,490",
-        "deal_price": "₹1,299",
-        "discount": "71% OFF 💥 (Best Seller)",
-        "specs": "• 42 Hours Playtime\n• Low Latency Gaming Mode\n• IPX4 Water Resistance",
-        "image": "https://m.media-amazon.com/images/I/61KNJ34s9OL._SL1500_.jpg",
-        "url": f"https://www.amazon.in/dp/B09N3Z3Y89?tag={AMAZON_TAG}"
-    }
 ]
 
 # ================= CORE FUNCTIONS =================
 def send_deal(target_id, deal):
-    # 1. Duplicate Check
     if is_already_posted(deal["id"]):
         logging.info(f"Skipped duplicate deal: {deal['id']}")
         return False
 
-    # 2. Link Active Status Check (Agar link dead ya unavailable hai toh post nahi karega)
     if not check_link_is_active(deal["url"]):
         logging.warning(f"Skipped dead or unavailable link: {deal['title']} ({deal['url']})")
         return False
@@ -219,8 +203,7 @@ def send_deal(target_id, deal):
             [{"text": "🛒 Buy Now (Open in App)", "url": deal["url"]}],
             [
                 {"text": "📱 Mobiles", "callback_data": "cat_mobile"},
-                {"text": "💻 Laptops", "callback_data": "cat_laptop"},
-                {"text": "🎧 Audio", "callback_data": "cat_audio"}
+                {"text": "💻 Laptops", "callback_data": "cat_laptop"}
             ],
             [{"text": "📢 Join Main Channel", "url": CHANNEL_LINK}]
         ]
@@ -247,9 +230,10 @@ def send_deal(target_id, deal):
     return True
 
 def broadcast_deal():
-    global deal_index
-    deal = HOT_DEALS[deal_index % len(HOT_DEALS)]
-    deal_index += 1
+    deals = get_all_deals()
+    if not deals:
+        return
+    deal = random.choice(deals)
 
     send_deal(CHANNEL_ID, deal)
 
@@ -264,7 +248,6 @@ def broadcast_deal():
     except Exception as e:
         logging.error(f"User Broadcast Error: {e}")
 
-# ================= AUTOMATIC OPT-IN PROMOTION RUNNER =================
 def run_scheduled_promotions():
     try:
         conn = sqlite3.connect("database.db")
@@ -275,40 +258,25 @@ def run_scheduled_promotions():
     except Exception as e:
         return f"DB Error: {e}"
 
-    sent_count, skipped_count, failed_count = 0, 0, 0
-    report_lines = []
+    sent_count = 0
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     interval_mins = int(get_setting("promo_interval_mins") or 30)
     daily_limit = int(get_setting("daily_group_limit") or 20)
 
-    for idx, (g_id, g_name, status, last_time, daily_cnt, last_reset) in enumerate(groups, start=1):
+    for g_id, g_name, status, last_time, daily_cnt, last_reset in groups:
         if status != 'active':
             continue
-
         if last_reset != today_str:
             daily_cnt = 0
-            last_reset = today_str
-
         if daily_cnt >= daily_limit:
-            skipped_count += 1
-            report_lines.append(f"⏭️ {g_name} — Daily limit reached")
             continue
-
-        if last_time:
-            last_dt = datetime.strptime(last_time, "%Y-%m-%d %H:%M:%S")
-            diff_mins = (now - last_dt).total_seconds() / 60
-            if diff_mins < interval_mins:
-                skipped_count += 1
-                report_lines.append(f"⏭️ {g_name} — Rate limit")
-                continue
 
         template_text = random.choice(PROMO_TEMPLATES)
         reply_markup = {
             "inline_keyboard": [
                 [{"text": "📢 Join Channel", "url": CHANNEL_LINK}],
-                [{"text": "🤖 Open Bot", "url": f"https://t.me/{BOT_USERNAME}"}],
-                [{"text": "❌ Disable Promotions", "callback_data": f"optout_{g_id}"}]
+                [{"text": "🤖 Open Bot", "url": f"https://t.me/{BOT_USERNAME}"}]
             ]
         }
 
@@ -319,67 +287,12 @@ def run_scheduled_promotions():
                 "parse_mode": "Markdown",
                 "reply_markup": reply_markup
             })
-
             if res.status_code == 200:
                 sent_count += 1
-                daily_cnt += 1
-                report_lines.append(f"🟢 {g_name} — Sent")
-                update_group_promo_state(g_id, now.strftime("%Y-%m-%d %H:%M:%S"), daily_cnt, last_reset)
-            else:
-                failed_count += 1
-                report_lines.append(f"❌ {g_name} — Failed")
-                if res.status_code in [403, 400]:
-                    handle_bot_removed(g_id, g_name)
-        except Exception as ex:
-            failed_count += 1
-            report_lines.append(f"❌ {g_name} — Error")
-
-    if ADMIN_USER_ID != 0 and report_lines:
-        report_text = (
-            "📢 *Promotion Report*\n\n"
-            f"✅ Sent: `{sent_count}`\n"
-            f"⏭️ Skipped: `{skipped_count}`\n"
-            f"❌ Failed: `{failed_count}`\n\n"
-            "*Groups:*\n" + "\n".join(report_lines)
-        )
-        requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-            "chat_id": ADMIN_USER_ID,
-            "text": report_text,
-            "parse_mode": "Markdown"
-        })
+        except Exception:
+            pass
 
     return "Opt-in promotion cycle finished."
-
-def update_group_promo_state(g_id, time_str, count, reset_date):
-    try:
-        conn = sqlite3.connect("database.db")
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE optin_groups 
-            SET last_promo_time = ?, daily_count = ?, last_reset_date = ? 
-            WHERE group_id = ?
-        """, (time_str, count, reset_date, g_id))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logging.error(f"State Update Error: {e}")
-
-def handle_bot_removed(g_id, g_name):
-    try:
-        conn = sqlite3.connect("database.db")
-        cursor = conn.cursor()
-        cursor.execute("UPDATE optin_groups SET promo_status = 'removed' WHERE group_id = ?", (g_id,))
-        conn.commit()
-        conn.close()
-        if ADMIN_USER_ID != 0:
-            alert = f"⚠️ *Alert Notification*\nBot was removed or lost permissions in group: *{g_name}* (ID: `{g_id}`)"
-            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                "chat_id": ADMIN_USER_ID,
-                "text": alert,
-                "parse_mode": "Markdown"
-            })
-    except Exception as e:
-        logging.error(f"Removal Handler Error: {e}")
 
 # ================= FLASK WEBHOOK HANDLER =================
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
@@ -395,7 +308,7 @@ def telegram_webhook():
 
         if data.startswith("cat_"):
             cat_type = data.split("_")[1]
-            matching_deals = [d for d in HOT_DEALS if d["category"] == cat_type]
+            matching_deals = [d for d in get_all_deals() if d["category"] == cat_type]
             if matching_deals:
                 for deal in matching_deals:
                     send_deal(chat_id, deal)
@@ -405,124 +318,40 @@ def telegram_webhook():
                     "text": "❌ Iss category me abhi koi active deal nahi hai."
                 })
 
-        elif data.startswith("optin_"):
-            g_id = int(data.split("_")[1])
-            try:
-                conn = sqlite3.connect("database.db")
-                cursor = conn.cursor()
-                cursor.execute("UPDATE optin_groups SET promo_status = 'active' WHERE group_id = ?", (g_id,))
-                conn.commit()
-                conn.close()
-                requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                    "chat_id": chat_id,
-                    "text": "✅ *Promotions Enabled Successfully!* PriceDrop Dost deals will now be shared here.",
-                    "parse_mode": "Markdown"
-                })
-            except Exception as e:
-                logging.error(f"Optin Error: {e}")
-
-        elif data.startswith("optout_"):
-            g_id = int(data.split("_")[1])
-            try:
-                conn = sqlite3.connect("database.db")
-                cursor = conn.cursor()
-                cursor.execute("UPDATE optin_groups SET promo_status = 'disabled' WHERE group_id = ?", (g_id,))
-                conn.commit()
-                conn.close()
-                requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                    "chat_id": chat_id,
-                    "text": "❌ *Promotions Disabled* by group interaction.",
-                    "parse_mode": "Markdown"
-                })
-                if ADMIN_USER_ID != 0:
-                    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                        "chat_id": ADMIN_USER_ID,
-                        "text": f"⚠️ Group ID `{g_id}` has disabled promotions.",
-                        "parse_mode": "Markdown"
-                    })
-            except Exception as e:
-                logging.error(f"Optout Error: {e}")
-
-    elif "my_chat_member" in update:
-        mcm = update["my_chat_member"]
-        chat = mcm["chat"]
-        new_status = mcm["new_chat_member"]["status"]
-        if chat["type"] in ["group", "supergroup"]:
-            g_id = chat["id"]
-            g_name = chat.get("title", "Unknown Group")
-            g_username = chat.get("username", "")
-            date_added = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            if new_status in ["member", "administrator"]:
-                try:
-                    conn = sqlite3.connect("database.db")
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO optin_groups (group_id, group_name, username, date_added, promo_status)
-                        VALUES (?, ?, ?, ?, 'disabled')
-                    """, (g_id, g_name, g_username, date_added))
-                    conn.commit()
-                    conn.close()
-                except Exception as e:
-                    logging.error(f"Auto-save group error: {e}")
-
-                setup_text = (
-                    "🔥 *PriceDrop Dost Promotion*\n\n"
-                    "Want to receive useful deal updates in this group?\n\n"
-                    "📱 Best phone deals\n"
-                    "💻 Laptop & PC deals\n"
-                    "💸 Price drops\n"
-                    "🛒 Shopping deals"
-                )
-                setup_markup = {
-                    "inline_keyboard": [
-                        [
-                            {"text": "✅ Enable Deals", "callback_data": f"optin_{g_id}"},
-                            {"text": "❌ Don't Enable", "callback_data": f"optout_{g_id}"}
-                        ]
-                    ]
-                }
-                requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                    "chat_id": g_id,
-                    "text": setup_text,
-                    "parse_mode": "Markdown",
-                    "reply_markup": setup_markup
-                })
-            elif new_status in ["left", "kicked"]:
-                handle_bot_removed(g_id, g_name)
-
     elif "message" in update:
         msg = update["message"]
         chat_id = msg["chat"]["id"]
-        chat_type = msg["chat"]["type"]
         text = msg.get("text", "").strip()
 
-        if text.startswith("/promo_on"):
-            if chat_type in ["group", "supergroup"]:
-                try:
-                    conn = sqlite3.connect("database.db")
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE optin_groups SET promo_status = 'active' WHERE group_id = ?", (chat_id,))
-                    conn.commit()
-                    conn.close()
-                    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                        "chat_id": chat_id,
-                        "text": "🟢 Group promotions enabled via `/promo_on` command."
-                    })
-                except Exception as e:
-                    logging.error(f"Promo On Error: {e}")
-        elif text.startswith("/promo_off"):
-            if chat_type in ["group", "supergroup"]:
-                try:
-                    conn = sqlite3.connect("database.db")
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE optin_groups SET promo_status = 'disabled' WHERE group_id = ?", (chat_id,))
-                    conn.commit()
-                    conn.close()
-                    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                        "chat_id": chat_id,
-                        "text": "🔴 Group promotions disabled via `/promo_off` command."
-                    })
-                except Exception as e:
-                    logging.error(f"Promo Off Error: {e}")
-                    
+        if text.startswith("/start"):
+            welcome_text = "🔥 *Welcome to Daily Price Alert!*\n\nSelect a category below to check live deals:"
+            cat_keyboard = {
+                "inline_keyboard": [
+                    [{"text": "📱 Mobiles", "callback_data": "cat_mobile"}, {"text": "💻 Laptops", "callback_data": "cat_laptop"}],
+                    [{"text": "📢 Join Official Channel", "url": CHANNEL_LINK}]
+                ]
+            }
+            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": welcome_text,
+                "parse_mode": "Markdown",
+                "reply_markup": cat_keyboard
+            })
+        elif text.startswith("/postdeal"):
+            broadcast_deal()
+
+    return "ok", 200
+
+@app.route("/cron-auto-post")
+def auto_post_cron():
+    broadcast_deal()
+    run_scheduled_promotions()
+    return "Triggered Successfully!", 200
+
+@app.route("/")
+def index():
+    return "Bot is Active!", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
+            
