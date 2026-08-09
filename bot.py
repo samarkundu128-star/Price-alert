@@ -497,7 +497,7 @@ def telegram_webhook():
         chat_type = msg["chat"]["type"]
         text = msg.get("text", "").strip()
 
-        if text.startswith("/promo_on"):
+                elif text.startswith("/promo_on"):
             if chat_type in ["group", "supergroup"]:
                 try:
                     conn = sqlite3.connect("database.db")
@@ -512,9 +512,6 @@ def telegram_webhook():
                 except Exception as e:
                     logging.error(f"Promo On Error: {e}")
 
-              elif text.startswith("/promo_off"):
-516:             if chat_type in ["group", "supergroup"]:
-                
         elif text.startswith("/promo_off"):
             if chat_type in ["group", "supergroup"]:
                 try:
@@ -529,6 +526,7 @@ def telegram_webhook():
                     })
                 except Exception as e:
                     logging.error(f"Promo Off Error: {e}")
+    
 
         elif text.startswith("/promo_status"):
             if chat_type in ["group", "supergroup"]:
