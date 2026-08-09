@@ -101,25 +101,6 @@ def get_setting(key):
     except Exception:
         return None
 
-# ================= WEB SCRAPING UTILITY =================
-def scrape_deal_page(target_url: str):
-    """BeautifulSoup ka use karke public web page se content parse karne ka function"""
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9"
-        }
-        response = requests.get(target_url, headers=headers, timeout=8)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            # Example extraction logic for title
-            title_element = soup.find('span', {'id': 'productTitle'})
-            title = title_element.text.strip() if title_element else "Live Deal Item"
-            return {"title": title, "url": target_url}
-    except Exception as e:
-        logging.error(f"Scraping error for {target_url}: {e}")
-    return None
-
 # ================= DUPLICATE & LINK VALIDATION =================
 def is_already_posted(deal_id: str) -> bool:
     try:
