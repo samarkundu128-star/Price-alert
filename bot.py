@@ -512,8 +512,9 @@ def telegram_webhook():
                 except Exception as e:
                     logging.error(f"Promo On Error: {e}")
 
-        elif text.startswith("/promo_off"):
-        if chat_type in ["group", "supergroup"]:
+              elif text.startswith("/promo_off"):
+516:             if chat_type in ["group", "supergroup"]:
+                
         elif text.startswith("/promo_off"):
             if chat_type in ["group", "supergroup"]:
                 try:
