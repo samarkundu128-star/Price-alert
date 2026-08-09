@@ -511,3 +511,18 @@ def telegram_webhook():
                     })
                 except Exception as e:
                     logging.error(f"Promo On Error: {e}")
+        elif text.startswith("/promo_off"):
+            if chat_type in ["group", "supergroup"]:
+                try:
+                    conn = sqlite3.connect("database.db")
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE optin_groups SET promo_status = 'disabled' WHERE group_id = ?", (chat_id,))
+                    conn.commit()
+                    conn.close()
+                    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                        "chat_id": chat_id,
+                        "text": "🔴 Group promotions disabled via `/promo_off` command."
+                    })
+                except Exception as e:
+                    logging.error(f"Promo Off Error: {e}")
+                    
