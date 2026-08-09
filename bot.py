@@ -188,7 +188,7 @@ def send_deal(target_id, deal):
 
     caption = (
         f"🔥 *{deal['title']}*\n\n"
-        f"❌ M.R.P.: \~{deal['orig_price']}\~\n"
+        f"❌ M.R.P.: ~{deal['orig_price']}~\n"
         f"💰 *Deal Price: {deal['deal_price']}*\n"
         f"⚡ *Discount:* {deal['discount']}\n\n"
         f"📌 *Key Features:*\n{deal['specs']}\n\n"
@@ -513,129 +513,5 @@ def telegram_webhook():
         elif text.startswith("/promo_status"):
             if chat_type in ["group", "supergroup"]:
                 try:
-                    conn = sqlite3.connect("database.db"
-elif text.startswith("/promo_status"):
-            if chat_type in ["group", "supergroup"]:
-                try:
                     conn = sqlite3.connect("database.db")
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT promo_status, daily_count FROM optin_groups WHERE group_id = ?", (chat_id,))
-                    row = cursor.fetchone()
-                    conn.close()
-                    status = row[0] if row else "Not registered"
-                    cnt = row[1] if row else 0
-                    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                        "chat_id": chat_id,
-                        "text": f"📊 *Promotion Status*\nStatus: `{status}`\nMessages Sent Today: `{cnt}`",
-                        "parse_mode": "Markdown"
-                    })
-                except Exception as e:
-                    logging.error(f"Promo Status Error: {e}")
-
-        elif text.startswith("/leave_group"):
-            if chat_type in ["group", "supergroup"]:
-                requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                    "chat_id": chat_id,
-                    "text": "👋 Leaving group as requested..."
-                })
-                requests.post(f"{TELEGRAM_API_URL}/leaveChat", json={"chat_id": chat_id})
-
-        elif text.startswith("/report"):
-            res_msg = run_scheduled_promotions()
-            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": f"📋 Manual Trigger Report:\n{res_msg}"
-            })
-
-        elif text.startswith("/about"):
-            about_text = (
-                "🔥 *PriceDrop Dost — Your Smart Shopping Assistant*\n\n"
-                "📉 Track product prices\n"
-                "🔔 Get price-drop alerts\n"
-                "📱 Find best phones\n"
-                "💻 Find best laptops\n"
-                "🖥️ Find PC deals\n"
-                "🛒 Compare available deals\n"
-                "💸 Find budget-friendly products\n"
-                "📊 Check price history\n"
-                "❤️ Save products\n"
-                "⚡ Discover today's best deals\n\n"
-                f"📢 *Daily Deals Channel*\n👉 {CHANNEL_LINK}\n\n"
-                f"🤖 *Start Shopping*\n👉 @{BOT_USERNAME}"
-            )
-            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": about_text,
-                "parse_mode": "Markdown",
-                "disable_web_page_preview": True
-            })
-
-        elif text.startswith("/start"):
-            if chat_type == "private":
-                try:
-                    conn = sqlite3.connect("database.db")
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (chat_id,))
-                    conn.commit()
-                    conn.close()
-                except Exception as e:
-                    logging.error(f"User Insert Error: {e}")
-
-            welcome_text = (
-                "🔥 *Welcome to Daily Price Alert!*\n\n"
-                "Aapko saste se saste active deals bilkul free me milengi.\n\n"
-                "🔍 *Search Option:*\n"
-                "👉 `/search hp` ya `/search asus` ya `/search samsung`\n\n"
-                "ℹ️ *About Bot:* `/about`\n\n"
-                "📌 *Niche Category Par Click karke Live Deals Dekhein:*👇"
-            )
-            cat_keyboard = {
-                "inline_keyboard": [
-                    [{"text": "📱 Mobiles", "callback_data": "cat_mobile"}, {"text": "💻 Laptops", "callback_data": "cat_laptop"}],
-                    [{"text": "🎧 Audio & Accessories", "callback_data": "cat_audio"}],
-                    [{"text": "📢 Join Official Channel", "url": CHANNEL_LINK}]
-                ]
-            }
-            requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": welcome_text,
-                "parse_mode": "Markdown",
-                "reply_markup": cat_keyboard
-            })
-
-        elif text.startswith("/search"):
-            query = text.replace("/search", "").strip().lower()
-            if not query:
-                requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                    "chat_id": chat_id,
-                    "text": "🔍 *Search Format:* `/search laptop` ya `/search phone`",
-                    "parse_mode": "Markdown"
-                })
-            else:
-                results = [d for d in HOT_DEALS if query in d["title"].lower() or query in d["specs"].lower() or query in d["category"].lower()]
-                if results:
-                    for deal in results:
-                        send_deal(chat_id, deal)
-                else:
-                    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={
-                        "chat_id": chat_id,
-                        "text": f"❌ '{query}' se match karti koi active deal nahi mili."
-                    })
-
-        elif text.startswith("/postdeal"):
-            broadcast_deal()
-
-    return "ok", 200
-
-@app.route("/cron-auto-post")
-def auto_post_cron():
-    broadcast_deal()
-    run_scheduled_promotions()
-    return "Deal & Automatic Opt-in Promotion Triggered Successfully!", 200
-
-@app.route("/")
-def index():
-    return "Daily Deals Bot Active with Automatic Opt-In Promotion System!", 200
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+            
