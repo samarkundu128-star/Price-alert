@@ -18,7 +18,6 @@ from config import (
     WEBSITE_URL,
     AUTOPILOT_MODE
 )
-from services.ai_service import AIService
 
 # Enable logging
 logging.basicConfig(
@@ -30,9 +29,6 @@ logger = logging.getLogger(__name__)
 if not TELEGRAM_BOT_TOKEN:
     logger.critical("❌ TELEGRAM_BOT_TOKEN missing in environment variables!")
     exit(1)
-
-# Initialize AI Service
-ai_service = AIService()
 
 # Global variable for Telegram application
 telegram_app = None
@@ -231,7 +227,6 @@ async def send_deal_to_chat(target_id, deal):
     if not check_link_is_active(deal["url"]):
         return False
 
-    # Cuelinks tracking conversion formatting if publisher ID exists
     final_url = deal["url"]
     if CUELINKS_PUBLISHER_ID:
         encoded_url = requests.utils.quote(deal["url"], safe="")
@@ -314,7 +309,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_message = update.message.text
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     
-    # Fuzzy-style local search match through active deals or AI fallback
     deals = get_all_deals()
     matched = [d for d in deals if user_message.lower() in d['title'].lower() or user_message.lower() in d['category'].lower()]
     
@@ -322,6 +316,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         for deal in matched:
             await send_deal_to_chat(update.effective_chat.id, deal)
     else:
-        ai_response = ai_service.generate_response(user_message)
-        await update.message.reply_text(f"{ai_response}\n\n🔗 *Affiliate Tag:* `{AMAZON_TAG}`", parse_mode="Markdown")
+        await update.message.reply_text(
+            f"🔍 *Aapne search kiya:* `{user_message}`\n\n"
+            f"Filhal is name se koi active deal match nahi hui. /start dabakar categories check karein!\n\n"
+            f"🔗 *Affiliate Tag:* `{AMAZON_TAG}`",
+            parse_mode="Markdown"
+        )
         
